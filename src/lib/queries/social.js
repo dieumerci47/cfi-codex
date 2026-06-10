@@ -211,20 +211,24 @@ export function useAddComment(postId) {
 }
 
 // ---- FOLLOW ----------------------------------------------------
-export function useFollowState(targetId) {
+/**
+ * Ensemble des IDs que je suis — une seule requête partagée par tous les
+ * boutons « Suivre » (Explore, profils, feed). Mise en cache globalement, donc
+ * l'état est exact dès le 1er rendu sur les pages revisitées (plus de flash
+ * « Suivre » → « Abonné »).
+ */
+export function useMyFollowing() {
   const { user } = useAuth()
   return useQuery({
-    queryKey: ['follow-state', user?.id, targetId],
-    enabled: !!user?.id && !!targetId && user.id !== targetId,
+    queryKey: ['my-following', user?.id],
+    enabled: !!user?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('follows')
-        .select('follower_id')
+        .select('following_id')
         .eq('follower_id', user.id)
-        .eq('following_id', targetId)
-        .maybeSingle()
       if (error) throw error
-      return !!data
+      return new Set(data.map((f) => f.following_id))
     },
   })
 }
@@ -271,26 +275,31 @@ export function useToggleFollow() {
         if (error) throw error
       }
     },
-    // Optimiste sur le bouton + le compteur d'abonnés (réaction immédiate).
+    // Optimiste sur l'ensemble « qui je suis » + le compteur d'abonnés.
     onMutate: async ({ targetId, following }) => {
-      const stateKey = ['follow-state', user?.id, targetId]
+      const followingKey = ['my-following', user?.id]
       const countsKey = ['follow-counts', targetId]
-      await qc.cancelQueries({ queryKey: stateKey })
+      await qc.cancelQueries({ queryKey: followingKey })
       await qc.cancelQueries({ queryKey: countsKey })
-      const prevState = qc.getQueryData(stateKey)
+      const prevFollowing = qc.getQueryData(followingKey)
       const prevCounts = qc.getQueryData(countsKey)
-      qc.setQueryData(stateKey, !following)
+      if (prevFollowing) {
+        const next = new Set(prevFollowing)
+        if (following) next.delete(targetId)
+        else next.add(targetId)
+        qc.setQueryData(followingKey, next)
+      }
       if (prevCounts) {
         qc.setQueryData(countsKey, {
           ...prevCounts,
           followers: Math.max(0, prevCounts.followers + (following ? -1 : 1)),
         })
       }
-      return { stateKey, countsKey, prevState, prevCounts }
+      return { followingKey, countsKey, prevFollowing, prevCounts }
     },
     onError: (_e, _v, ctx) => {
       if (!ctx) return
-      qc.setQueryData(ctx.stateKey, ctx.prevState)
+      if (ctx.prevFollowing) qc.setQueryData(ctx.followingKey, ctx.prevFollowing)
       if (ctx.prevCounts) qc.setQueryData(ctx.countsKey, ctx.prevCounts)
     },
     // Réconciliation en arrière-plan des données dérivées côté serveur
