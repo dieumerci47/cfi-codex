@@ -14,6 +14,8 @@ import { Logo, LogoMark } from '@/components/brand/Logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { useChatRealtime, useTotalUnread } from '@/lib/queries/chat'
+import { useNotificationsRealtime } from '@/lib/queries/notifications'
+import { NotificationsBell } from '@/components/social/NotificationsBell'
 
 const NAV = [
   { to: '/app', label: 'Feed', icon: Home, end: true },
@@ -26,6 +28,7 @@ export default function AppLayout() {
   const { signOut } = useAuth()
   const navigate = useNavigate()
   useChatRealtime() // abonnement live au chat (badge + fils)
+  useNotificationsRealtime() // abonnement live aux notifications (cloche)
 
   const handleSignOut = async () => {
     await signOut()
@@ -67,6 +70,7 @@ export default function AppLayout() {
             <span className="font-display text-lg font-semibold">Codex</span>
           </span>
           <div className="flex items-center gap-1">
+            <NotificationsBell />
             <MessagesButton />
             <ThemeToggle className="lg:hidden" />
           </div>
