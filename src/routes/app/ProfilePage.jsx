@@ -68,7 +68,7 @@ export default function ProfilePage() {
 }
 
 function ProfileView({ profile, self }) {
-  const { data: counts } = useFollowCounts(profile.id)
+  const { data: counts, isPending: countsLoading } = useFollowCounts(profile.id)
   const { data: collections } = useCollections(profile.id)
   const { data: posts } = useUserPosts(profile.id)
   const { data: isFriend } = useIsFriend(profile.id)
@@ -154,11 +154,11 @@ function ProfileView({ profile, self }) {
 
           <div className="mt-4 flex gap-5 font-meta text-sm">
             <span>
-              <strong className="text-base">{counts?.followers ?? 0}</strong>{' '}
+              <CountValue value={counts?.followers} loading={countsLoading} />{' '}
               <span className="text-muted-foreground">abonnés</span>
             </span>
             <span>
-              <strong className="text-base">{counts?.following ?? 0}</strong>{' '}
+              <CountValue value={counts?.following} loading={countsLoading} />{' '}
               <span className="text-muted-foreground">abonnements</span>
             </span>
           </div>
@@ -381,6 +381,15 @@ function EditProfileDialog({ profile, open, onClose }) {
       </DialogContent>
     </Dialog>
   )
+}
+
+function CountValue({ value, loading }) {
+  if (loading && value == null) {
+    return (
+      <span className="inline-block h-4 w-5 animate-pulse rounded bg-muted align-middle" />
+    )
+  }
+  return <strong className="text-base">{value ?? 0}</strong>
 }
 
 function EmptyTab({ label }) {

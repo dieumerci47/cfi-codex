@@ -144,9 +144,31 @@ export function useToggleLike() {
         if (error) throw error
       }
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['feed'] })
-      qc.invalidateQueries({ queryKey: ['user-posts'] })
+    // Mise à jour optimiste : on patche le cache tout de suite, sans recharger
+    // le feed. Le compteur ±1 est exact, donc pas de refetch nécessaire.
+    onMutate: async ({ postId, liked }) => {
+      await qc.cancelQueries({ queryKey: ['feed'] })
+      await qc.cancelQueries({ queryKey: ['user-posts'] })
+      const patch = (list) =>
+        list?.map((p) =>
+          p.id === postId
+            ? {
+                ...p,
+                liked_by_me: !liked,
+                like_count: Math.max(0, p.like_count + (liked ? -1 : 1)),
+              }
+            : p,
+        )
+      const prev = [
+        ...qc.getQueriesData({ queryKey: ['feed'] }),
+        ...qc.getQueriesData({ queryKey: ['user-posts'] }),
+      ]
+      qc.setQueriesData({ queryKey: ['feed'] }, patch)
+      qc.setQueriesData({ queryKey: ['user-posts'] }, patch)
+      return { prev }
+    },
+    onError: (_e, _v, ctx) => {
+      ctx?.prev?.forEach(([key, data]) => qc.setQueryData(key, data))
     },
   })
 }
@@ -249,12 +271,35 @@ export function useToggleFollow() {
         if (error) throw error
       }
     },
-    onSuccess: (_d, { targetId }) => {
-      qc.invalidateQueries({ queryKey: ['follow-state', user?.id, targetId] })
-      qc.invalidateQueries({ queryKey: ['follow-counts', targetId] })
+    // Optimiste sur le bouton + le compteur d'abonnés (réaction immédiate).
+    onMutate: async ({ targetId, following }) => {
+      const stateKey = ['follow-state', user?.id, targetId]
+      const countsKey = ['follow-counts', targetId]
+      await qc.cancelQueries({ queryKey: stateKey })
+      await qc.cancelQueries({ queryKey: countsKey })
+      const prevState = qc.getQueryData(stateKey)
+      const prevCounts = qc.getQueryData(countsKey)
+      qc.setQueryData(stateKey, !following)
+      if (prevCounts) {
+        qc.setQueryData(countsKey, {
+          ...prevCounts,
+          followers: Math.max(0, prevCounts.followers + (following ? -1 : 1)),
+        })
+      }
+      return { stateKey, countsKey, prevState, prevCounts }
+    },
+    onError: (_e, _v, ctx) => {
+      if (!ctx) return
+      qc.setQueryData(ctx.stateKey, ctx.prevState)
+      if (ctx.prevCounts) qc.setQueryData(ctx.countsKey, ctx.prevCounts)
+    },
+    // Réconciliation en arrière-plan des données dérivées côté serveur
+    // (amitié = abonnement mutuel, feed des suivis). Non bloquant.
+    onSettled: (_d, _e, { targetId }) => {
       qc.invalidateQueries({ queryKey: ['feed'] })
       qc.invalidateQueries({ queryKey: ['is-friend'] })
       qc.invalidateQueries({ queryKey: ['friends'] })
+      qc.invalidateQueries({ queryKey: ['follow-counts', targetId] })
     },
   })
 }

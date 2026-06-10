@@ -1,4 +1,4 @@
-import { Loader2, UserCheck, UserPlus } from 'lucide-react'
+import { UserCheck, UserPlus } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useFollowState, useToggleFollow } from '@/lib/queries/social'
 import { Button } from '@/components/ui/button'
@@ -18,9 +18,9 @@ export function FollowButton({ targetId, size = 'sm' }) {
       disabled={isLoading || toggle.isPending}
       onClick={() => toggle.mutate({ targetId, following })}
     >
-      {toggle.isPending ? (
-        <Loader2 className="size-4 animate-spin" />
-      ) : following ? (
+      {/* L'état est mis à jour de façon optimiste : on reflète tout de suite
+          le résultat plutôt qu'un spinner. */}
+      {following ? (
         <>
           <UserCheck className="size-4" /> Abonné
         </>
