@@ -23,6 +23,7 @@ import {
   Eye,
   UserPlus,
   Shield,
+  Star,
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -43,6 +44,7 @@ import {
   useInviteMember,
   useRemoveMember,
   useToggleCollectionFollow,
+  useToggleStar,
   useSubjects,
 } from '@/lib/queries/collections'
 import { ResourceViewer } from '@/components/ResourceViewer'
@@ -253,6 +255,7 @@ export default function CollectionDetailPage() {
 
         {/* Actions selon le rôle */}
         <div className="flex shrink-0 items-center gap-2">
+          <StarButton collection={collection} />
           {isOwner && <EditCollectionDialog collection={collection} />}
           <MembersDialog collection={collection} isOwner={isOwner} />
           {!isOwner && (
@@ -438,6 +441,23 @@ function ResourceIcon({ item }) {
   if (mime === 'application/pdf')
     return <FileText className="size-5 text-destructive" />
   return <FileIcon className="size-5 text-muted-foreground" />
+}
+
+function StarButton({ collection }) {
+  const toggle = useToggleStar(collection.id)
+  const starred = collection.starred_by_me
+  return (
+    <Button
+      size="sm"
+      variant={starred ? 'default' : 'outline'}
+      disabled={toggle.isPending}
+      onClick={() => toggle.mutate(starred)}
+      aria-label={starred ? 'Retirer mon étoile' : 'Étoiler ce cours'}
+    >
+      <Star className={cn('size-4', starred && 'fill-current')} />
+      {collection.star_count ?? 0}
+    </Button>
+  )
 }
 
 function RoleBadge({ role }) {

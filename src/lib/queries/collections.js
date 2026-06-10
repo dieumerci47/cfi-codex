@@ -39,8 +39,9 @@ export function useCollections(ownerId) {
   })
 }
 
-/** Détail d'une collection. */
+/** Détail d'une collection (avec étoiles). */
 export function useCollection(id) {
+  const { user } = useAuth()
   return useQuery({
     queryKey: ['collection', id],
     enabled: !!id,
@@ -48,12 +49,17 @@ export function useCollection(id) {
       const { data, error } = await supabase
         .from('collections')
         .select(
-          '*, subject:subjects(name, code), owner:profiles!collections_owner_id_fkey(username, full_name, avatar_url)',
+          '*, subject:subjects(name, code), owner:profiles!collections_owner_id_fkey(username, full_name, avatar_url), stars:collection_stars(user_id)',
         )
         .eq('id', id)
         .single()
       if (error) throw error
-      return data
+      const stars = data.stars ?? []
+      return {
+        ...data,
+        star_count: stars.length,
+        starred_by_me: stars.some((s) => s.user_id === user?.id),
+      }
     },
   })
 }
@@ -260,6 +266,68 @@ export function useMemberCollections(role) {
         .eq('role', role)
       if (error) throw error
       return data.map((r) => r.collection).filter(Boolean)
+    },
+  })
+}
+
+/** Étoiler / désétoiler un cours (optimiste). */
+export function useToggleStar(collectionId) {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (starred) => {
+      if (starred) {
+        const { error } = await supabase
+          .from('collection_stars')
+          .delete()
+          .eq('collection_id', collectionId)
+          .eq('user_id', user.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('collection_stars')
+          .insert({ collection_id: collectionId, user_id: user.id })
+        if (error) throw error
+      }
+    },
+    onMutate: async (starred) => {
+      const key = ['collection', collectionId]
+      await qc.cancelQueries({ queryKey: key })
+      const prev = qc.getQueryData(key)
+      if (prev) {
+        qc.setQueryData(key, {
+          ...prev,
+          starred_by_me: !starred,
+          star_count: Math.max(0, (prev.star_count ?? 0) + (starred ? -1 : 1)),
+        })
+      }
+      return { key, prev }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(ctx.key, ctx.prev)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['popular-collections'] }),
+  })
+}
+
+/** Cours publics les plus étoilés (page Explorer, onglet Cours). */
+export function usePopularCollections() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['popular-collections'],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('collections')
+        .select(
+          '*, subject:subjects(name, code), owner:profiles!collections_owner_id_fkey(username, full_name, avatar_url), stars:collection_stars(user_id)',
+        )
+        .eq('visibility', 'public')
+        .limit(30)
+      if (error) throw error
+      return data
+        .map((c) => ({ ...c, star_count: c.stars?.length ?? 0 }))
+        .sort((a, b) => b.star_count - a.star_count)
     },
   })
 }

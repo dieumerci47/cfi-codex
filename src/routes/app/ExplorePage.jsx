@@ -4,13 +4,19 @@ import {
   FileText,
   Folder,
   FolderTree,
+  Globe,
+  Lock,
   Search,
+  Star,
   StickyNote,
   Users,
 } from 'lucide-react'
 
 import { useDiscoverProfiles } from '@/lib/queries/social'
-import { useSearchCourses } from '@/lib/queries/collections'
+import {
+  useSearchCourses,
+  usePopularCollections,
+} from '@/lib/queries/collections'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { FollowButton } from '@/components/social/FollowButton'
 import { Input } from '@/components/ui/input'
@@ -97,19 +103,67 @@ function PeopleResults({ search }) {
 }
 
 function CourseResults({ search }) {
-  const navigate = useNavigate()
   const q = search.trim()
-  const { data: results, isLoading } = useSearchCourses(search)
+  // Sans recherche : on met en avant les cours publics les plus étoilés.
+  if (q.length < 2) return <PopularCourses />
+  return <CourseSearchResults q={q} />
+}
 
-  if (q.length < 2) {
+function PopularCourses() {
+  const { data: collections, isLoading } = usePopularCollections()
+  if (isLoading) return <UserListSkeleton count={4} />
+  if (!collections?.length) {
     return (
       <EmptyState
-        icon={<Search className="size-6" />}
-        title="Cherche dans les cours"
-        text="Tape au moins 2 caractères : titre de cours, nom de fichier, ou un mot dans une note."
+        icon={<FolderTree className="size-6" />}
+        title="Aucun cours public"
+        text="Quand des cours publics seront partagés, les plus étoilés s’afficheront ici."
       />
     )
   }
+  return (
+    <>
+      <p className="mt-3 font-meta text-xs uppercase tracking-wide text-muted-foreground">
+        Cours populaires
+      </p>
+      <ul className="mt-2 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card/40">
+        {collections.map((c) => (
+          <li key={c.id}>
+            <Link
+              to={`/app/collections/${c.id}`}
+              className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/60"
+            >
+              <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+                <FolderTree className="size-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{c.title}</p>
+                <p className="truncate font-meta text-xs text-muted-foreground">
+                  {c.visibility === 'private' ? (
+                    <Lock className="inline size-3" />
+                  ) : (
+                    <Globe className="inline size-3" />
+                  )}{' '}
+                  {c.subject?.code ?? 'cours'}
+                  {c.owner?.username && ` · @${c.owner.username}`}
+                </p>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-1 font-meta text-sm text-muted-foreground">
+                <Star className="size-4" />
+                {c.star_count}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
+function CourseSearchResults({ q }) {
+  const navigate = useNavigate()
+  const { data: results, isLoading } = useSearchCourses(q)
+
   if (isLoading) return <UserListSkeleton count={4} />
   if (!results?.length) {
     return (
