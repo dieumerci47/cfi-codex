@@ -21,6 +21,8 @@ export function AuthProvider({ children }) {
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return
       setSession(data.session)
+      // Autorise les abonnements Realtime (chat) avec le JWT de l'utilisateur.
+      if (data.session) supabase.realtime.setAuth(data.session.access_token)
       setLoading(false)
     })
 
@@ -28,6 +30,7 @@ export function AuthProvider({ children }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession)
+      if (nextSession) supabase.realtime.setAuth(nextSession.access_token)
       setLoading(false)
     })
 

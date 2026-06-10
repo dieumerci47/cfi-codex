@@ -17,6 +17,7 @@ const CollectionDetailPage = lazy(() =>
   import('@/routes/app/CollectionDetailPage'),
 )
 const ProfilePage = lazy(() => import('@/routes/app/ProfilePage'))
+const MessagesPage = lazy(() => import('@/routes/app/MessagesPage'))
 
 export default function App() {
   return (
@@ -51,6 +52,8 @@ export default function App() {
           <Route path="collections/:id" element={<CollectionDetailPage />} />
           <Route path="me" element={<ProfilePage />} />
           <Route path="u/:username" element={<ProfilePage />} />
+          <Route path="messages" element={<MessagesPage />} />
+          <Route path="messages/:id" element={<MessagesPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

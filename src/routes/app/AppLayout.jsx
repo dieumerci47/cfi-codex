@@ -5,6 +5,7 @@ import {
   LogOut,
   Plus,
   FolderTree,
+  MessageCircle,
   User as UserIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -12,6 +13,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
+import { useChatRealtime, useTotalUnread } from '@/lib/queries/chat'
 
 const NAV = [
   { to: '/app', label: 'Feed', icon: Home, end: true },
@@ -23,6 +25,7 @@ const NAV = [
 export default function AppLayout() {
   const { signOut } = useAuth()
   const navigate = useNavigate()
+  useChatRealtime() // abonnement live au chat (badge + fils)
 
   const handleSignOut = async () => {
     await signOut()
@@ -57,11 +60,16 @@ export default function AppLayout() {
 
       {/* Colonne principale */}
       <div className="flex min-h-dvh flex-col">
-        {/* Barre du haut (mobile) */}
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3 backdrop-blur lg:hidden">
-          <LogoMark />
-          <span className="font-display text-lg font-semibold">Codex</span>
-          <ThemeToggle />
+        {/* Barre du haut (toutes tailles) — accès Messages en haut à droite */}
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/80 px-4 py-2.5 backdrop-blur">
+          <span className="flex items-center gap-2 lg:invisible">
+            <LogoMark className="size-7" />
+            <span className="font-display text-lg font-semibold">Codex</span>
+          </span>
+          <div className="flex items-center gap-1">
+            <MessagesButton />
+            <ThemeToggle className="lg:hidden" />
+          </div>
         </header>
 
         <main className="flex-1 pb-24 lg:pb-10">
@@ -76,6 +84,31 @@ export default function AppLayout() {
         ))}
       </nav>
     </div>
+  )
+}
+
+function MessagesButton() {
+  const unread = useTotalUnread()
+  return (
+    <NavLink
+      to="/app/messages"
+      className={({ isActive }) =>
+        cn(
+          'relative inline-flex size-9 items-center justify-center rounded-md transition-colors',
+          isActive
+            ? 'bg-primary/12 text-primary'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+        )
+      }
+      aria-label="Messages"
+    >
+      <MessageCircle className="size-5" />
+      {unread > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-ember px-1 font-meta text-[10px] font-semibold text-ember-foreground">
+          {unread > 9 ? '9+' : unread}
+        </span>
+      )}
+    </NavLink>
   )
 }
 

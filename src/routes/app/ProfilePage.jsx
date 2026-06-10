@@ -1,13 +1,16 @@
-import { Link, useParams } from 'react-router-dom'
-import { FolderTree, Globe, Loader2, Lock } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { FolderTree, Globe, Loader2, Lock, MessageCircle } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useMyProfile, useProfileByUsername } from '@/lib/queries/profile'
 import { useCollections } from '@/lib/queries/collections'
 import { useUserPosts, useFollowCounts } from '@/lib/queries/social'
+import { useStartDM } from '@/lib/queries/chat'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { FollowButton } from '@/components/social/FollowButton'
 import { PostCard } from '@/components/social/PostCard'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export default function ProfilePage() {
@@ -44,6 +47,17 @@ function ProfileView({ profile, self }) {
   const { data: counts } = useFollowCounts(profile.id)
   const { data: collections } = useCollections(profile.id)
   const { data: posts } = useUserPosts(profile.id)
+  const startDM = useStartDM()
+  const navigate = useNavigate()
+
+  const onMessage = async () => {
+    try {
+      const convId = await startDM.mutateAsync(profile.id)
+      navigate(`/app/messages/${convId}`)
+    } catch (err) {
+      toast.error(err.message ?? 'Impossible d’ouvrir la conversation.')
+    }
+  }
 
   // Sur le profil d'un autre, on ne montre que les collections publiques
   const visibleCollections = self
@@ -66,7 +80,24 @@ function ProfileView({ profile, self }) {
                 {profile.promo && ` · ${profile.promo}`}
               </p>
             </div>
-            <FollowButton targetId={profile.id} />
+            <div className="flex items-center gap-2">
+              {!self && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onMessage}
+                  disabled={startDM.isPending}
+                >
+                  {startDM.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <MessageCircle className="size-4" />
+                  )}
+                  Message
+                </Button>
+              )}
+              <FollowButton targetId={profile.id} />
+            </div>
           </div>
 
           {profile.bio && <p className="mt-2 text-sm">{profile.bio}</p>}
