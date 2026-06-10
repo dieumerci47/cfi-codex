@@ -2,6 +2,7 @@ import { Loader2, Sparkles } from 'lucide-react'
 import { useFeed } from '@/lib/queries/social'
 import { PostComposer } from '@/components/social/PostComposer'
 import { PostCard } from '@/components/social/PostCard'
+import { StatusBar } from '@/components/social/StatusBar'
 
 export default function FeedPage() {
   const { data: posts, isLoading } = useFeed()
@@ -13,6 +14,11 @@ export default function FeedPage() {
         <p className="font-meta text-xs text-muted-foreground">
           ce que ta promo partage
         </p>
+      </div>
+
+      {/* Statuts éphémères 24 h */}
+      <div className="mb-4 rounded-xl border border-border bg-card/40 p-3">
+        <StatusBar />
       </div>
 
       <PostComposer />
