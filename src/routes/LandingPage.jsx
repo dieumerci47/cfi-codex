@@ -13,7 +13,7 @@ import {
   Star,
   Video,
 } from 'lucide-react'
-import { Logo } from '@/components/brand/Logo'
+import { Logo, LogoMark } from '@/components/brand/Logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 
@@ -290,11 +290,12 @@ function ClosingCta() {
               'radial-gradient(30rem 20rem at 50% 0%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 70%)',
           }}
         />
-        <img
-          src="/logo/logo.png"
-          alt="Cirasphère"
-          className="mx-auto mb-6 w-44 rounded-2xl bg-white p-3 shadow-lg shadow-black/20 sm:w-52"
-        />
+        <span className="mx-auto mb-6 inline-flex items-center gap-3">
+          <LogoMark className="size-12" />
+          <span className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+            Cirasphère
+          </span>
+        </span>
         <h2 className="mx-auto max-w-2xl text-balance text-4xl font-semibold sm:text-5xl">
           Rejoins Cirasphère aujourd’hui.
         </h2>
