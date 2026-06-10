@@ -36,6 +36,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ProfileSkeleton } from '@/components/skeletons'
 
 export default function ProfilePage() {
   const { username } = useParams()
@@ -49,11 +50,7 @@ export default function ProfilePage() {
   const isLoading = isMe ? myProfile.isLoading : otherProfile.isLoading
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    )
+    return <ProfileSkeleton />
   }
 
   if (!profile) {

@@ -1,8 +1,9 @@
-import { Loader2, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { useFeed } from '@/lib/queries/social'
 import { PostComposer } from '@/components/social/PostComposer'
 import { PostCard } from '@/components/social/PostCard'
 import { StatusBar } from '@/components/social/StatusBar'
+import { FeedSkeleton } from '@/components/skeletons'
 
 export default function FeedPage() {
   const { data: posts, isLoading } = useFeed()
@@ -24,9 +25,7 @@ export default function FeedPage() {
       <PostComposer />
 
       {isLoading ? (
-        <div className="mt-10 flex justify-center">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
-        </div>
+        <FeedSkeleton />
       ) : posts?.length ? (
         <div className="mt-4 space-y-4">
           {posts.map((p) => (

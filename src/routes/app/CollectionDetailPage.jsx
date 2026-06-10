@@ -46,6 +46,7 @@ import {
   useSubjects,
 } from '@/lib/queries/collections'
 import { ResourceViewer } from '@/components/ResourceViewer'
+import { CollectionDetailSkeleton } from '@/components/skeletons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -100,11 +101,7 @@ export default function CollectionDetailPage() {
   )
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    )
+    return <CollectionDetailSkeleton />
   }
 
   if (!collection) {

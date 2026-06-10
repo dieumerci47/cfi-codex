@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Search, Users } from 'lucide-react'
+import { Search, Users } from 'lucide-react'
 
 import { useDiscoverProfiles } from '@/lib/queries/social'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { FollowButton } from '@/components/social/FollowButton'
 import { Input } from '@/components/ui/input'
+import { UserListSkeleton } from '@/components/skeletons'
 
 export default function ExplorePage() {
   const [search, setSearch] = useState('')
@@ -29,9 +30,7 @@ export default function ExplorePage() {
       </div>
 
       {isLoading ? (
-        <div className="mt-10 flex justify-center">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
-        </div>
+        <UserListSkeleton />
       ) : profiles?.length ? (
         <ul className="mt-6 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card/40">
           {profiles.map((p) => (

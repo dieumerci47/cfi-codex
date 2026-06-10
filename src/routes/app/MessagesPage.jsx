@@ -23,6 +23,10 @@ import {
   useCreateGroup,
 } from '@/lib/queries/chat'
 import { useFriends } from '@/lib/queries/social'
+import {
+  ConversationListSkeleton,
+  MessageThreadSkeleton,
+} from '@/components/skeletons'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -77,9 +81,7 @@ function ConversationList({ activeId }) {
 
       <div className="flex-1 overflow-auto">
         {isLoading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
+          <ConversationListSkeleton />
         ) : conversations?.length ? (
           conversations.map((c) => (
             <button
@@ -198,9 +200,7 @@ function ChatThread({ conversationId }) {
       {/* Messages */}
       <div className="flex-1 space-y-2 overflow-auto px-4 py-4">
         {isLoading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
+          <MessageThreadSkeleton />
         ) : (
           messages?.map((m, i) => {
             const mine = m.sender_id === user?.id

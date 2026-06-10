@@ -31,6 +31,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { CollectionGridSkeleton } from '@/components/skeletons'
 import { toast } from 'sonner'
 
 export default function CollectionsPage() {
@@ -90,11 +91,7 @@ export default function CollectionsPage() {
 
 function CollectionGrid({ query, empty }) {
   if (query.isLoading) {
-    return (
-      <div className="flex justify-center py-10">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    )
+    return <CollectionGridSkeleton />
   }
   if (!query.data?.length) return empty
   return (
