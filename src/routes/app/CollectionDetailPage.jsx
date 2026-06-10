@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Folder,
   FolderPlus,
+  FolderUp,
   FileText,
   File as FileIcon,
   FileImage,
@@ -33,6 +34,7 @@ import {
   useResources,
   useCreateResource,
   useUploadFiles,
+  useUploadFolder,
   useRenameResource,
   useDeleteResource,
   useUpdateCollection,
@@ -76,9 +78,12 @@ export default function CollectionDetailPage() {
   const [isDragging, setIsDragging] = useState(false)
 
   const upload = useUploadFiles(id)
+  const uploadFolder = useUploadFolder(id)
   const del = useDeleteResource(id)
   const fileInput = useRef(null)
+  const folderInput = useRef(null)
   const dragDepth = useRef(0) // compteur d'entrées/sorties pour un drag stable
+  const busy = upload.isPending || uploadFolder.isPending
 
   const isOwner = collection && user?.id === collection.owner_id
   const role = isOwner ? 'owner' : membership?.role ?? null
@@ -131,6 +136,26 @@ export default function CollectionDetailPage() {
     uploadFiles(files)
   }
 
+  const uploadFolderFiles = async (files) => {
+    const list = Array.from(files ?? [])
+    if (list.length === 0) return
+    const topName =
+      (list[0].webkitRelativePath || list[0]._relPath || '').split('/')[0] ||
+      'Dossier'
+    try {
+      const res = await uploadFolder.mutateAsync({ files: list, parent_id: folderId })
+      toast.success(`« ${topName} » importé — ${res.files} fichiers ✦`)
+    } catch (err) {
+      toast.error(err.message ?? 'Échec de l’import du dossier.')
+    }
+  }
+
+  const onPickFolder = (e) => {
+    const files = e.target.files
+    e.target.value = ''
+    uploadFolderFiles(files)
+  }
+
   // Drag & drop robuste (compteur d'entrées) : reste fiable quel que soit
   // le contenu du dossier, y compris quand on survole des éléments enfants.
   const hasFiles = (e) =>
@@ -157,7 +182,19 @@ export default function CollectionDetailPage() {
     e.preventDefault()
     dragDepth.current = 0
     setIsDragging(false)
-    uploadFiles(e.dataTransfer.files)
+    // Capture des entrées de façon synchrone (elles expirent après le handler)
+    const entries = e.dataTransfer.items
+      ? Array.from(e.dataTransfer.items)
+          .map((it) => it.webkitGetAsEntry?.())
+          .filter(Boolean)
+      : []
+    if (entries.some((en) => en.isDirectory)) {
+      collectDroppedEntries(entries).then((files) => {
+        if (files.length) uploadFolderFiles(files)
+      })
+    } else {
+      uploadFiles(e.dataTransfer.files)
+    }
   }
 
   const onDelete = async (resource) => {
@@ -237,9 +274,9 @@ export default function CollectionDetailPage() {
           <Button
             size="sm"
             onClick={() => fileInput.current?.click()}
-            disabled={upload.isPending}
+            disabled={busy}
           >
-            {upload.isPending ? (
+            {busy ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <Upload className="size-4" />
@@ -252,6 +289,23 @@ export default function CollectionDetailPage() {
             multiple
             className="hidden"
             onChange={onPickFiles}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => folderInput.current?.click()}
+            disabled={busy}
+          >
+            <FolderUp className="size-4" /> Importer un dossier
+          </Button>
+          <input
+            ref={folderInput}
+            type="file"
+            webkitdirectory=""
+            directory=""
+            multiple
+            className="hidden"
+            onChange={onPickFolder}
           />
           <NewFolderDialog collectionId={id} parentId={folderId} />
           <NewNoteDialog collectionId={id} parentId={folderId} />
@@ -302,9 +356,10 @@ export default function CollectionDetailPage() {
           </div>
         )}
 
-        {upload.isPending && (
+        {busy && (
           <div className="flex items-center gap-2 border-b border-border px-4 py-2 font-meta text-xs text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin" /> import en cours…
+            <Loader2 className="size-3.5 animate-spin" />{' '}
+            {uploadFolder.isPending ? 'import du dossier…' : 'import en cours…'}
           </div>
         )}
 
@@ -841,6 +896,35 @@ function NewNoteDialog({ collectionId, parentId }) {
       </DialogContent>
     </Dialog>
   )
+}
+
+// ---- glisser-déposer de dossiers (File System Entries API) ----
+function readEntriesBatch(reader) {
+  return new Promise((resolve, reject) => reader.readEntries(resolve, reject))
+}
+
+async function walkEntry(entry, prefix, out) {
+  if (entry.isFile) {
+    const file = await new Promise((res, rej) => entry.file(res, rej))
+    // chemin relatif synthétique réutilisé par useUploadFolder
+    file._relPath = prefix + entry.name
+    out.push(file)
+  } else if (entry.isDirectory) {
+    const reader = entry.createReader()
+    let batch
+    do {
+      batch = await readEntriesBatch(reader)
+      for (const child of batch) {
+        await walkEntry(child, prefix + entry.name + '/', out)
+      }
+    } while (batch.length > 0)
+  }
+}
+
+async function collectDroppedEntries(entries) {
+  const out = []
+  for (const en of entries) await walkEntry(en, '', out)
+  return out
 }
 
 // ---- helpers ----

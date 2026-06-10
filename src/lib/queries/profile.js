@@ -48,6 +48,23 @@ export async function isUsernameAvailable(username) {
   return !data
 }
 
+/** Téléverse un avatar (bucket public `avatars`) et renvoie son URL publique. */
+export function useUploadAvatar() {
+  const { user } = useAuth()
+  return useMutation({
+    mutationFn: async (file) => {
+      const safe = file.name.replace(/[^\w.\-]+/g, '_')
+      const path = `${user.id}/${Date.now()}-${safe}`
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: false, contentType: file.type })
+      if (upErr) throw upErr
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+      return data.publicUrl
+    },
+  })
+}
+
 /** Met à jour le profil de l'utilisateur connecté. */
 export function useUpdateProfile() {
   const { user } = useAuth()

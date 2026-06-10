@@ -28,7 +28,8 @@
       "Bash(git restore *)",
       "Bash(git push *)",
       "Bash(node -e ' *)",
-      "Bash(git commit -q -m '@ *)"
+      "Bash(git commit -q -m '@ *)",
+      "Bash(node scripts/avatar-upload-test.mjs)"
     ]
   }
 }

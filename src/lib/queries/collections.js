@@ -369,6 +369,80 @@ export function useUploadFiles(collectionId) {
   })
 }
 
+/**
+ * Importe un dossier complet en recréant son arborescence.
+ * `files` = FileList dont chaque entrée porte un `webkitRelativePath`
+ * (« Dossier/sous-dossier/fichier.pdf »). Les dossiers manquants sont créés
+ * une seule fois, puis chaque fichier est rangé dans le bon dossier.
+ */
+export function useUploadFolder(collectionId) {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ files, parent_id }) => {
+      const list = Array.from(files ?? [])
+      // Cache chemin-relatif -> id de dossier (la racine = le dossier courant)
+      const folderIds = new Map([['', parent_id || null]])
+
+      // Crée le dossier (et ses parents) si besoin, de façon mémoïsée.
+      const ensureFolder = async (dirPath) => {
+        if (folderIds.has(dirPath)) return folderIds.get(dirPath)
+        const idx = dirPath.lastIndexOf('/')
+        const parentPath = idx === -1 ? '' : dirPath.slice(0, idx)
+        const name = idx === -1 ? dirPath : dirPath.slice(idx + 1)
+        const parentResourceId = await ensureFolder(parentPath)
+        const { data, error } = await supabase
+          .from('resources')
+          .insert({
+            collection_id: collectionId,
+            parent_id: parentResourceId,
+            kind: 'folder',
+            name,
+          })
+          .select()
+          .single()
+        if (error) throw error
+        folderIds.set(dirPath, data.id)
+        return data.id
+      }
+
+      let count = 0
+      for (const file of list) {
+        const rel = file._relPath || file.webkitRelativePath || file.name
+        const parts = rel.split('/')
+        const fileName = parts.pop()
+        const folderId = await ensureFolder(parts.join('/'))
+
+        const safeName = fileName.replace(/[^\w.\-]+/g, '_')
+        const rand = Math.random().toString(36).slice(2, 7)
+        const path = `${user.id}/${collectionId}/${Date.now()}-${rand}-${safeName}`
+
+        const { error: upErr } = await supabase.storage
+          .from(RESOURCES_BUCKET)
+          .upload(path, file, { upsert: false, contentType: file.type })
+        if (upErr) throw upErr
+
+        const { error } = await supabase.from('resources').insert({
+          collection_id: collectionId,
+          parent_id: folderId,
+          kind: 'file',
+          name: fileName,
+          storage_path: path,
+          mime_type: file.type,
+          size_bytes: file.size,
+        })
+        if (error) throw error
+        count++
+      }
+      return { files: count, folders: folderIds.size - 1 }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['resources', collectionId] })
+      qc.invalidateQueries({ queryKey: ['collection', collectionId] })
+    },
+  })
+}
+
 /** Renomme une ressource (dossier, fichier ou note). */
 export function useRenameResource(collectionId) {
   const qc = useQueryClient()

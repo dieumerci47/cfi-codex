@@ -75,6 +75,15 @@ export default function AppLayout() {
             <NotificationsBell />
             <MessagesButton />
             <ThemeToggle className="lg:hidden" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSignOut}
+              aria-label="Se déconnecter"
+              className="lg:hidden"
+            >
+              <LogOut className="size-5" />
+            </Button>
           </div>
         </header>
 

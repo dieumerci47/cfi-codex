@@ -299,6 +299,9 @@ function StatusViewer({ groups, startIndex, onClose }) {
   const status = group?.statuses[si]
   const isMine = group?.author.id === user?.id
   const frozen = paused || confirmDelete || showViewers
+  // Compteur de vues du statut courant (auteur uniquement)
+  const { data: myViewers } = useStatusViewers(isMine ? status?.id : null)
+  const viewCount = myViewers?.length ?? 0
 
   const next = () => {
     if (si < group.statuses.length - 1) setSi((s) => s + 1)
@@ -426,11 +429,13 @@ function StatusViewer({ groups, startIndex, onClose }) {
         {isMine ? (
           <button
             onClick={() => setShowViewers(true)}
-            className="z-20 flex items-center gap-2 bg-black/40 px-4 py-3 text-white/80 transition-colors hover:bg-black/60"
+            className="z-20 flex items-center justify-center gap-2 bg-black/40 px-4 py-3 text-white/80 transition-colors hover:bg-black/60"
           >
             <Eye className="size-4" />
             <span className="font-meta text-xs">
-              Voir qui a vu ce statut
+              {viewCount > 0
+                ? `Vu par ${viewCount} ${viewCount > 1 ? 'personnes' : 'personne'}`
+                : 'Voir qui a vu ce statut'}
             </span>
           </button>
         ) : (
