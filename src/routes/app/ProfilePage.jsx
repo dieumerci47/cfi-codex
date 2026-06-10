@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useMyProfile, useProfileByUsername } from '@/lib/queries/profile'
 import { useCollections } from '@/lib/queries/collections'
-import { useUserPosts, useFollowCounts } from '@/lib/queries/social'
+import { useUserPosts, useFollowCounts, useIsFriend } from '@/lib/queries/social'
 import { useStartDM } from '@/lib/queries/chat'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { FollowButton } from '@/components/social/FollowButton'
@@ -47,6 +47,7 @@ function ProfileView({ profile, self }) {
   const { data: counts } = useFollowCounts(profile.id)
   const { data: collections } = useCollections(profile.id)
   const { data: posts } = useUserPosts(profile.id)
+  const { data: isFriend } = useIsFriend(profile.id)
   const startDM = useStartDM()
   const navigate = useNavigate()
 
@@ -81,7 +82,7 @@ function ProfileView({ profile, self }) {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {!self && (
+              {!self && isFriend && (
                 <Button
                   variant="outline"
                   size="sm"

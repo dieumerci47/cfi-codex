@@ -22,7 +22,7 @@ import {
   useStartDM,
   useCreateGroup,
 } from '@/lib/queries/chat'
-import { useDiscoverProfiles } from '@/lib/queries/social'
+import { useFriends } from '@/lib/queries/social'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -265,7 +265,7 @@ function NewConversationDialog() {
   const [groupTitle, setGroupTitle] = useState('')
   const [selected, setSelected] = useState([]) // profils sélectionnés (groupe)
 
-  const { data: profiles } = useDiscoverProfiles(search)
+  const { data: profiles } = useFriends(search)
   const startDM = useStartDM()
   const createGroup = useCreateGroup()
   const navigate = useNavigate()
@@ -375,7 +375,7 @@ function NewConversationDialog() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher un élève…"
+          placeholder="Rechercher un ami…"
           autoCapitalize="none"
         />
 
@@ -411,7 +411,9 @@ function NewConversationDialog() {
             })
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              Aucun élève trouvé.
+              {search
+                ? 'Aucun ami à ce nom.'
+                : 'Tu n’as pas encore d’amis. Abonnez-vous mutuellement pour pouvoir discuter.'}
             </p>
           )}
         </div>

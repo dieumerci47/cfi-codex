@@ -253,6 +253,61 @@ export function useToggleFollow() {
       qc.invalidateQueries({ queryKey: ['follow-state', user?.id, targetId] })
       qc.invalidateQueries({ queryKey: ['follow-counts', targetId] })
       qc.invalidateQueries({ queryKey: ['feed'] })
+      qc.invalidateQueries({ queryKey: ['is-friend'] })
+      qc.invalidateQueries({ queryKey: ['friends'] })
+    },
+  })
+}
+
+/** Amis = abonnement mutuel. Utilisé pour démarrer une conversation. */
+export function useFriends(search = '') {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['friends', user?.id, search],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const [following, followers] = await Promise.all([
+        supabase.from('follows').select('following_id').eq('follower_id', user.id),
+        supabase.from('follows').select('follower_id').eq('following_id', user.id),
+      ])
+      if (following.error) throw following.error
+      if (followers.error) throw followers.error
+
+      const followingSet = new Set(following.data.map((f) => f.following_id))
+      const friendIds = followers.data
+        .map((f) => f.follower_id)
+        .filter((id) => followingSet.has(id))
+      if (friendIds.length === 0) return []
+
+      let query = supabase
+        .from('profiles')
+        .select('id, username, full_name, avatar_url, promo')
+        .in('id', friendIds)
+      if (search.trim()) {
+        query = query.or(
+          `username.ilike.%${search}%,full_name.ilike.%${search}%`,
+        )
+      }
+      const { data, error } = await query.order('full_name')
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/** Suis-je ami (abonnement mutuel) avec cet utilisateur ? */
+export function useIsFriend(targetId) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['is-friend', user?.id, targetId],
+    enabled: !!user?.id && !!targetId && user.id !== targetId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('are_friends', {
+        a: user.id,
+        b: targetId,
+      })
+      if (error) throw error
+      return data === true
     },
   })
 }
