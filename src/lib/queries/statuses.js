@@ -123,6 +123,22 @@ export function useStatusViewers(statusId) {
   })
 }
 
+/** Répondre à un statut → envoie un message dans le DM avec l'auteur. */
+export function useReplyToStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ statusId, body }) => {
+      const { data, error } = await supabase.rpc('send_status_reply', {
+        p_status_id: statusId,
+        p_body: body.trim(),
+      })
+      if (error) throw error
+      return data // conversation id
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+  })
+}
+
 export function useDeleteStatus() {
   const qc = useQueryClient()
   return useMutation({

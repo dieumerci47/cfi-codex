@@ -226,6 +226,19 @@ function ChatThread({ conversationId }) {
                       @{m.sender?.username}
                     </p>
                   )}
+                  {m.status_id && (
+                    <p
+                      className={cn(
+                        'mb-1 rounded-md border-l-2 px-2 py-1 text-xs italic',
+                        mine
+                          ? 'border-primary-foreground/40 bg-black/10'
+                          : 'border-primary/50 bg-background/40',
+                      )}
+                    >
+                      ↩︎ En réponse à {mine ? 'son' : 'ton'} statut
+                      {m.repliedStatus?.caption ? ` · « ${m.repliedStatus.caption} »` : ''}
+                    </p>
+                  )}
                   <p className="whitespace-pre-wrap break-words">{m.body}</p>
                 </div>
               </div>

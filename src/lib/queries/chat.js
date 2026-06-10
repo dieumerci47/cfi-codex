@@ -77,7 +77,8 @@ export function useMessages(conversationId) {
       const { data, error } = await supabase
         .from('messages')
         .select(
-          '*, sender:profiles(id, username, full_name, avatar_url)',
+          '*, sender:profiles(id, username, full_name, avatar_url), ' +
+            'repliedStatus:statuses(id, caption, media_path)',
         )
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true })

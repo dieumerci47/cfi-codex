@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { Plus, X, Image as ImageIcon, Type, Loader2, Eye, Trash2 } from 'lucide-react'
+import {
+  Plus,
+  X,
+  Image as ImageIcon,
+  Type,
+  Loader2,
+  Eye,
+  Trash2,
+  Send,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
@@ -10,6 +19,7 @@ import {
   useMarkStatusViewed,
   useDeleteStatus,
   useStatusViewers,
+  useReplyToStatus,
 } from '@/lib/queries/statuses'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { Button } from '@/components/ui/button'
@@ -22,6 +32,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 const BG_COLORS = ['#0f7a4f', '#bf6a12', '#2563a8', '#8a4fb0', '#b5403a', '#15140f']
 const STORY_MS = 5000
@@ -63,10 +84,10 @@ function StatusTile({ group, onClick }) {
     <button onClick={onClick} className="flex w-16 shrink-0 flex-col items-center gap-1">
       <span
         className={cn(
-          'rounded-full p-[2px]',
+          'rounded-full p-0.5',
           group.allSeen
             ? 'bg-border'
-            : 'bg-gradient-to-tr from-primary to-ember',
+            : 'bg-linear-to-tr from-primary to-ember',
         )}
       >
         <span className="block rounded-full border-2 border-background">
@@ -91,8 +112,8 @@ function AddStatusTile({ mine, onViewMine }) {
           <button
             onClick={onViewMine}
             className={cn(
-              'block rounded-full p-[2px]',
-              mine.allSeen ? 'bg-border' : 'bg-gradient-to-tr from-primary to-ember',
+              'block rounded-full p-0.5',
+              mine.allSeen ? 'bg-border' : 'bg-linear-to-tr from-primary to-ember',
             )}
           >
             <span className="block rounded-full border-2 border-background">
@@ -100,7 +121,7 @@ function AddStatusTile({ mine, onViewMine }) {
             </span>
           </button>
         ) : (
-          <span className="block rounded-full p-[2px]">
+          <span className="block rounded-full p-0.5">
             <UserAvatar
               profile={{ id: user?.id, username: 'moi' }}
               className="size-14 opacity-90"
@@ -277,14 +298,16 @@ function StatusViewer({ groups, startIndex, onClose }) {
   const [gi, setGi] = useState(startIndex)
   const [si, setSi] = useState(0)
   const [progress, setProgress] = useState(0)
+  const [paused, setPaused] = useState(false)
   const markViewed = useMarkStatusViewed()
-  const timer = useRef(null)
+  const reply = useReplyToStatus()
+  const elapsed = useRef(0)
+  const [replyText, setReplyText] = useState('')
 
   const group = groups[gi]
   const status = group?.statuses[si]
   const isMine = group?.author.id === user?.id
 
-  // Avance global
   const next = () => {
     if (si < group.statuses.length - 1) setSi((s) => s + 1)
     else if (gi < groups.length - 1) {
@@ -301,28 +324,52 @@ function StatusViewer({ groups, startIndex, onClose }) {
     }
   }
 
-  // Marque vu + lance le minuteur de progression
+  // Reset + marquage vu à chaque changement de statut
   useEffect(() => {
     if (!status) return
-    if (!isMine && !status.seen) markViewed.mutate(status.id)
+    elapsed.current = 0
     setProgress(0)
-    const start = Date.now()
-    timer.current = setInterval(() => {
-      const pct = Math.min(100, ((Date.now() - start) / STORY_MS) * 100)
+    setReplyText('')
+    setPaused(false)
+    if (!isMine && !status.seen) markViewed.mutate(status.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gi, si])
+
+  // Minuteur (mis en pause pendant la saisie d'une réponse)
+  useEffect(() => {
+    if (!status || paused) return
+    const tick = setInterval(() => {
+      elapsed.current += 50
+      const pct = Math.min(100, (elapsed.current / STORY_MS) * 100)
       setProgress(pct)
       if (pct >= 100) {
-        clearInterval(timer.current)
+        clearInterval(tick)
         next()
       }
     }, 50)
-    return () => clearInterval(timer.current)
+    return () => clearInterval(tick)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gi, si])
+  }, [gi, si, paused])
+
+  const sendReply = async (e) => {
+    e.preventDefault()
+    const body = replyText.trim()
+    if (!body) return
+    setReplyText('')
+    try {
+      await reply.mutateAsync({ statusId: status.id, body })
+      toast.success(`Réponse envoyée à @${group.author.username}`)
+    } catch (err) {
+      toast.error(err.message ?? 'Échec de l’envoi.')
+    } finally {
+      setPaused(false)
+    }
+  }
 
   if (!status) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90">
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/90">
       <div className="relative flex h-full w-full max-w-md flex-col">
         {/* Barres de progression */}
         <div className="absolute inset-x-0 top-0 z-20 flex gap-1 p-2">
@@ -344,7 +391,9 @@ function StatusViewer({ groups, startIndex, onClose }) {
               {group.author.full_name || `@${group.author.username}`}
             </p>
           </div>
-          {isMine && <DeleteStatusButton status={status} onDeleted={onClose} />}
+          {isMine && (
+            <DeleteStatusButton status={status} onDeleted={onClose} onOpen={() => setPaused(true)} />
+          )}
           <button onClick={onClose} className="rounded-full p-1.5 text-white" aria-label="Fermer">
             <X className="size-6" />
           </button>
@@ -363,59 +412,122 @@ function StatusViewer({ groups, startIndex, onClose }) {
             </p>
           )}
 
-          {/* Zones tactiles préc/suiv */}
-          <button
-            onClick={prev}
-            className="absolute inset-y-0 left-0 w-1/3"
-            aria-label="Précédent"
-          />
-          <button
-            onClick={next}
-            className="absolute inset-y-0 right-0 w-2/3"
-            aria-label="Suivant"
-          />
+          <button onClick={prev} className="absolute inset-y-0 left-0 w-1/3" aria-label="Précédent" />
+          <button onClick={next} className="absolute inset-y-0 right-0 w-2/3" aria-label="Suivant" />
 
-          {/* Légende (image) */}
           {status.url && status.caption && (
-            <p className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/70 to-transparent p-4 pb-6 text-center text-white">
+            <p className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-black/70 to-transparent p-4 pb-6 text-center text-white">
               {status.caption}
             </p>
           )}
         </div>
 
-        {/* Vues (auteur) */}
-        {isMine && <StatusViewersStrip statusId={status.id} />}
+        {/* Pied : réponse (autres) ou vues (auteur) */}
+        {isMine ? (
+          <StatusViewersStrip statusId={status.id} onOpen={() => setPaused(true)} onClose={() => setPaused(false)} />
+        ) : (
+          <form onSubmit={sendReply} className="z-20 flex items-center gap-2 bg-black/40 px-3 py-2.5">
+            <Input
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              onFocus={() => setPaused(true)}
+              onBlur={() => setPaused(false)}
+              placeholder={`Répondre à @${group.author.username}…`}
+              className="border-white/20 bg-white/10 text-white placeholder:text-white/50"
+            />
+            <Button type="submit" size="icon" disabled={!replyText.trim() || reply.isPending}>
+              {reply.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            </Button>
+          </form>
+        )}
       </div>
     </div>
   )
 }
 
-function DeleteStatusButton({ status, onDeleted }) {
+function DeleteStatusButton({ status, onDeleted, onOpen }) {
   const del = useDeleteStatus()
   return (
-    <button
-      onClick={async () => {
-        await del.mutateAsync(status)
-        toast.success('Statut supprimé')
-        onDeleted()
-      }}
-      className="rounded-full p-1.5 text-white"
-      aria-label="Supprimer"
-    >
-      <Trash2 className="size-5" />
-    </button>
+    <AlertDialog onOpenChange={(o) => o && onOpen?.()}>
+      <AlertDialogTrigger asChild>
+        <button className="rounded-full p-1.5 text-white" aria-label="Supprimer">
+          <Trash2 className="size-5" />
+        </button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Supprimer ce statut ?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Cette action est définitive. Ton statut et ses vues seront supprimés.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annuler</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={async () => {
+              try {
+                await del.mutateAsync(status)
+                toast.success('Statut supprimé')
+                onDeleted()
+              } catch (err) {
+                toast.error(err.message ?? 'Erreur.')
+              }
+            }}
+          >
+            Supprimer
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
-function StatusViewersStrip({ statusId }) {
+/** Bandeau "vu par" cliquable → ouvre la liste complète des spectateurs. */
+function StatusViewersStrip({ statusId, onOpen, onClose }) {
   const { data: viewers } = useStatusViewers(statusId)
+  const count = viewers?.length ?? 0
+
   return (
-    <div className="z-20 flex items-center gap-2 bg-black/40 px-4 py-2 text-white/80">
-      <Eye className="size-4" />
-      <span className="font-meta text-xs">
-        {viewers?.length ?? 0} vue{(viewers?.length ?? 0) > 1 ? 's' : ''}
-        {viewers?.length ? ' · ' + viewers.slice(0, 3).map((v) => '@' + v.viewer?.username).join(', ') : ''}
-      </span>
-    </div>
+    <Dialog
+      onOpenChange={(o) => (o ? onOpen?.() : onClose?.())}
+    >
+      <DialogTrigger asChild>
+        <button className="z-20 flex items-center gap-2 bg-black/40 px-4 py-3 text-white/80 transition-colors hover:bg-black/60">
+          <Eye className="size-4" />
+          <span className="font-meta text-xs">
+            {count} vue{count > 1 ? 's' : ''}
+            {count > 0 && ' · appuie pour voir qui'}
+          </span>
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Eye className="size-4" /> Vu par {count}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="max-h-80 space-y-1 overflow-auto">
+          {count === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Personne n’a encore vu ce statut.
+            </p>
+          ) : (
+            viewers.map((v) => (
+              <div key={v.viewer?.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+                <UserAvatar profile={v.viewer} className="size-9" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">
+                    {v.viewer?.full_name || `@${v.viewer?.username}`}
+                  </p>
+                  <p className="truncate font-meta text-xs text-muted-foreground">
+                    @{v.viewer?.username}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
