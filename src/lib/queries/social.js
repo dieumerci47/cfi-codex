@@ -202,11 +202,48 @@ export function useAddComment(postId) {
       if (error) throw error
       return data
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['comments', postId] })
-      qc.invalidateQueries({ queryKey: ['feed'] })
-      qc.invalidateQueries({ queryKey: ['user-posts'] })
+    // Optimiste : on affiche le commentaire et on incrémente le compteur tout
+    // de suite, sans recharger le feed.
+    onMutate: async (body) => {
+      await qc.cancelQueries({ queryKey: ['comments', postId] })
+      const me = qc.getQueryData(['profile', user.id])
+      const optimistic = {
+        id: `optimistic-${Date.now()}`,
+        post_id: postId,
+        author_id: user.id,
+        body: body.trim(),
+        created_at: new Date().toISOString(),
+        author: {
+          username: me?.username ?? 'moi',
+          full_name: me?.full_name ?? null,
+          avatar_url: me?.avatar_url ?? null,
+        },
+        _optimistic: true,
+      }
+      const prevComments = qc.getQueryData(['comments', postId])
+      qc.setQueryData(['comments', postId], (old) => [...(old ?? []), optimistic])
+
+      const bump = (list) =>
+        list?.map((p) =>
+          p.id === postId
+            ? { ...p, comment_count: (p.comment_count ?? 0) + 1 }
+            : p,
+        )
+      const prev = [
+        ...qc.getQueriesData({ queryKey: ['feed'] }),
+        ...qc.getQueriesData({ queryKey: ['user-posts'] }),
+      ]
+      qc.setQueriesData({ queryKey: ['feed'] }, bump)
+      qc.setQueriesData({ queryKey: ['user-posts'] }, bump)
+      return { prevComments, prev }
     },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prevComments !== undefined)
+        qc.setQueryData(['comments', postId], ctx.prevComments)
+      ctx?.prev?.forEach(([key, data]) => qc.setQueryData(key, data))
+    },
+    // Resynchronise le vrai commentaire (id + horodatage serveur).
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['comments', postId] }),
   })
 }
 

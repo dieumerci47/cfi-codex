@@ -31,6 +31,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -274,6 +275,9 @@ function EditProfileDialog({ profile, open, onClose }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Modifier mon profil</DialogTitle>
+          <DialogDescription>
+            Mets à jour ta photo, ton nom, ta promo et ta bio.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-4">

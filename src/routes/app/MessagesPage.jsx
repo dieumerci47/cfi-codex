@@ -34,6 +34,7 @@ import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -341,6 +342,9 @@ function NewConversationDialog() {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Nouvelle conversation</DialogTitle>
+          <DialogDescription>
+            Démarre un message privé ou crée un groupe avec tes amis.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Bascule DM / Groupe */}

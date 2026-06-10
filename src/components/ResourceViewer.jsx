@@ -6,6 +6,7 @@ import { getSignedUrl } from '@/lib/queries/collections'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -20,6 +21,9 @@ export function ResourceViewer({ resource, open, onOpenChange }) {
           <DialogTitle className="flex items-center gap-2 font-meta text-sm">
             {resource?.name}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Aperçu de la ressource {resource?.name}.
+          </DialogDescription>
         </DialogHeader>
         <div className="max-h-[calc(90dvh-3.5rem)] overflow-auto">
           {resource && <ResourceBody resource={resource} />}

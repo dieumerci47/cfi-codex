@@ -56,6 +56,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -540,6 +541,9 @@ function EditCollectionDialog({ collection }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Modifier la collection</DialogTitle>
+          <DialogDescription>
+            Change le titre, la description, la matière ou la portée.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1.5">
@@ -638,6 +642,9 @@ function MembersDialog({ collection, isOwner }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Membres de la collection</DialogTitle>
+          <DialogDescription>
+            Invite des collaborateurs (éditeurs) ou gère les abonnés.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Invitation (propriétaire) */}
@@ -776,6 +783,7 @@ function RenameDialog({ collectionId, resource, onClose }) {
       >
         <DialogHeader>
           <DialogTitle>Renommer</DialogTitle>
+          <DialogDescription>Donne un nouveau nom à cet élément.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <Input
@@ -826,6 +834,9 @@ function NewFolderDialog({ collectionId, parentId }) {
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Nouveau dossier</DialogTitle>
+          <DialogDescription>
+            Crée un dossier dans l’emplacement courant.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <Input
@@ -881,6 +892,9 @@ function NewNoteDialog({ collectionId, parentId }) {
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Nouvelle note (markdown)</DialogTitle>
+          <DialogDescription>
+            Rédige une note en markdown, enregistrée dans le dossier courant.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1.5">

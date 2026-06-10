@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -37,6 +38,9 @@ export function CommentsDialog({ postId, open, onOpenChange }) {
       <DialogContent className="flex max-h-[80dvh] flex-col p-0">
         <DialogHeader className="border-b border-border px-5 py-3">
           <DialogTitle>Commentaires</DialogTitle>
+          <DialogDescription className="sr-only">
+            Fil des commentaires de la publication.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 space-y-4 overflow-auto px-5 py-4">

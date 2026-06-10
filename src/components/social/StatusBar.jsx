@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -178,6 +179,9 @@ function AddStatusDialog({ trigger }) {
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Nouveau statut</DialogTitle>
+          <DialogDescription>
+            Une photo ou un texte, visible 24 h par tes amis.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex gap-1 rounded-lg bg-secondary p-1">
