@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -137,6 +138,26 @@ export function useReplyToStatus() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
   })
+}
+
+/** Abonnement Realtime : ajout/suppression de statuts -> rafraîchit la barre. */
+export function useStatusesRealtime() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  useEffect(() => {
+    if (!user?.id) return
+    const channel = supabase
+      .channel('statuses:feed')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'statuses' },
+        () => qc.invalidateQueries({ queryKey: ['statuses'] }),
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user?.id, qc])
 }
 
 export function useDeleteStatus() {

@@ -15,6 +15,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { useChatRealtime, useTotalUnread } from '@/lib/queries/chat'
 import { useNotificationsRealtime } from '@/lib/queries/notifications'
+import { useStatusesRealtime } from '@/lib/queries/statuses'
 import { NotificationsBell } from '@/components/social/NotificationsBell'
 
 const NAV = [
@@ -29,6 +30,7 @@ export default function AppLayout() {
   const navigate = useNavigate()
   useChatRealtime() // abonnement live au chat (badge + fils)
   useNotificationsRealtime() // abonnement live aux notifications (cloche)
+  useStatusesRealtime() // abonnement live aux statuts (ajout/suppression)
 
   const handleSignOut = async () => {
     await signOut()

@@ -32,17 +32,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
 
 const BG_COLORS = ['#0f7a4f', '#bf6a12', '#2563a8', '#8a4fb0', '#b5403a', '#15140f']
 const STORY_MS = 5000
@@ -298,7 +287,9 @@ function StatusViewer({ groups, startIndex, onClose }) {
   const [gi, setGi] = useState(startIndex)
   const [si, setSi] = useState(0)
   const [progress, setProgress] = useState(0)
-  const [paused, setPaused] = useState(false)
+  const [paused, setPaused] = useState(false) // saisie réponse
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showViewers, setShowViewers] = useState(false)
   const markViewed = useMarkStatusViewed()
   const reply = useReplyToStatus()
   const elapsed = useRef(0)
@@ -307,6 +298,7 @@ function StatusViewer({ groups, startIndex, onClose }) {
   const group = groups[gi]
   const status = group?.statuses[si]
   const isMine = group?.author.id === user?.id
+  const frozen = paused || confirmDelete || showViewers
 
   const next = () => {
     if (si < group.statuses.length - 1) setSi((s) => s + 1)
@@ -331,13 +323,15 @@ function StatusViewer({ groups, startIndex, onClose }) {
     setProgress(0)
     setReplyText('')
     setPaused(false)
+    setConfirmDelete(false)
+    setShowViewers(false)
     if (!isMine && !status.seen) markViewed.mutate(status.id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gi, si])
 
-  // Minuteur (mis en pause pendant la saisie d'une réponse)
+  // Minuteur (gelé pendant saisie réponse / confirmation / liste des vues)
   useEffect(() => {
-    if (!status || paused) return
+    if (!status || frozen) return
     const tick = setInterval(() => {
       elapsed.current += 50
       const pct = Math.min(100, (elapsed.current / STORY_MS) * 100)
@@ -349,7 +343,7 @@ function StatusViewer({ groups, startIndex, onClose }) {
     }, 50)
     return () => clearInterval(tick)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gi, si, paused])
+  }, [gi, si, frozen])
 
   const sendReply = async (e) => {
     e.preventDefault()
@@ -392,7 +386,13 @@ function StatusViewer({ groups, startIndex, onClose }) {
             </p>
           </div>
           {isMine && (
-            <DeleteStatusButton status={status} onDeleted={onClose} onOpen={() => setPaused(true)} />
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="rounded-full p-1.5 text-white"
+              aria-label="Supprimer"
+            >
+              <Trash2 className="size-5" />
+            </button>
           )}
           <button onClick={onClose} className="rounded-full p-1.5 text-white" aria-label="Fermer">
             <X className="size-6" />
@@ -422,9 +422,17 @@ function StatusViewer({ groups, startIndex, onClose }) {
           )}
         </div>
 
-        {/* Pied : réponse (autres) ou vues (auteur) */}
+        {/* Pied : réponse (autres) ou compteur de vues (auteur) */}
         {isMine ? (
-          <StatusViewersStrip statusId={status.id} onOpen={() => setPaused(true)} onClose={() => setPaused(false)} />
+          <button
+            onClick={() => setShowViewers(true)}
+            className="z-20 flex items-center gap-2 bg-black/40 px-4 py-3 text-white/80 transition-colors hover:bg-black/60"
+          >
+            <Eye className="size-4" />
+            <span className="font-meta text-xs">
+              Voir qui a vu ce statut
+            </span>
+          </button>
         ) : (
           <form onSubmit={sendReply} className="z-20 flex items-center gap-2 bg-black/40 px-3 py-2.5">
             <Input
@@ -440,79 +448,80 @@ function StatusViewer({ groups, startIndex, onClose }) {
             </Button>
           </form>
         )}
+
+        {/* Panneau de confirmation de suppression (interne à la visionneuse) */}
+        {confirmDelete && (
+          <ConfirmDeletePanel
+            status={status}
+            onCancel={() => setConfirmDelete(false)}
+            onDeleted={onClose}
+          />
+        )}
+
+        {/* Panneau "vu par" (interne à la visionneuse) */}
+        {showViewers && (
+          <ViewersPanel statusId={status.id} onClose={() => setShowViewers(false)} />
+        )}
       </div>
     </div>
   )
 }
 
-function DeleteStatusButton({ status, onDeleted, onOpen }) {
+function ConfirmDeletePanel({ status, onCancel, onDeleted }) {
   const del = useDeleteStatus()
+  const remove = async () => {
+    try {
+      await del.mutateAsync(status)
+      toast.success('Statut supprimé')
+      onDeleted()
+    } catch (err) {
+      toast.error(err.message ?? 'Erreur.')
+    }
+  }
   return (
-    <AlertDialog onOpenChange={(o) => o && onOpen?.()}>
-      <AlertDialogTrigger asChild>
-        <button className="rounded-full p-1.5 text-white" aria-label="Supprimer">
-          <Trash2 className="size-5" />
-        </button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Supprimer ce statut ?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Cette action est définitive. Ton statut et ses vues seront supprimés.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Annuler</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={async () => {
-              try {
-                await del.mutateAsync(status)
-                toast.success('Statut supprimé')
-                onDeleted()
-              } catch (err) {
-                toast.error(err.message ?? 'Erreur.')
-              }
-            }}
-          >
-            Supprimer
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 p-6">
+      <div className="w-full max-w-xs rounded-2xl bg-card p-5 text-center">
+        <p className="text-base font-semibold">Supprimer ce statut ?</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Action définitive : le statut et ses vues seront supprimés.
+        </p>
+        <div className="mt-5 flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onCancel} disabled={del.isPending}>
+            Annuler
+          </Button>
+          <Button variant="destructive" className="flex-1" onClick={remove} disabled={del.isPending}>
+            {del.isPending ? <Loader2 className="size-4 animate-spin" /> : 'Supprimer'}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 
-/** Bandeau "vu par" cliquable → ouvre la liste complète des spectateurs. */
-function StatusViewersStrip({ statusId, onOpen, onClose }) {
+function ViewersPanel({ statusId, onClose }) {
   const { data: viewers } = useStatusViewers(statusId)
   const count = viewers?.length ?? 0
-
   return (
-    <Dialog
-      onOpenChange={(o) => (o ? onOpen?.() : onClose?.())}
-    >
-      <DialogTrigger asChild>
-        <button className="z-20 flex items-center gap-2 bg-black/40 px-4 py-3 text-white/80 transition-colors hover:bg-black/60">
-          <Eye className="size-4" />
-          <span className="font-meta text-xs">
-            {count} vue{count > 1 ? 's' : ''}
-            {count > 0 && ' · appuie pour voir qui'}
-          </span>
-        </button>
-      </DialogTrigger>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Eye className="size-4" /> Vu par {count}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="max-h-80 space-y-1 overflow-auto">
-          {count === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              Personne n’a encore vu ce statut.
-            </p>
-          ) : (
-            viewers.map((v) => (
+    <>
+      <button
+        className="absolute inset-0 z-30 bg-black/50"
+        onClick={onClose}
+        aria-label="Fermer"
+      />
+      <div className="absolute inset-x-0 bottom-0 z-40 max-h-[60%] overflow-auto rounded-t-2xl bg-card p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Eye className="size-4 text-muted-foreground" />
+          <h3 className="font-semibold">
+            Vu par {count} {count > 1 ? 'personnes' : 'personne'}
+          </h3>
+        </div>
+        {count === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Personne n’a encore vu ce statut.
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {viewers.map((v) => (
               <div key={v.viewer?.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5">
                 <UserAvatar profile={v.viewer} className="size-9" />
                 <div className="min-w-0 flex-1">
@@ -524,10 +533,10 @@ function StatusViewersStrip({ statusId, onOpen, onClose }) {
                   </p>
                 </div>
               </div>
-            ))
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   )
 }
