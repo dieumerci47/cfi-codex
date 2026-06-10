@@ -22,6 +22,7 @@ import { useCollections } from '@/lib/queries/collections'
 import { useUserPosts, useFollowCounts, useIsFriend } from '@/lib/queries/social'
 import { useStartDM } from '@/lib/queries/chat'
 import { UserAvatar } from '@/components/social/UserAvatar'
+import { VerifiedBadge } from '@/components/social/VerifiedBadge'
 import { FollowButton } from '@/components/social/FollowButton'
 import { PostCard } from '@/components/social/PostCard'
 import { Button } from '@/components/ui/button'
@@ -134,8 +135,9 @@ function ProfileView({ profile, self }) {
 
         {/* Identité */}
         <div className="mt-3">
-          <h1 className="font-display text-2xl font-semibold leading-tight">
+          <h1 className="flex items-center gap-1.5 font-display text-2xl font-semibold leading-tight">
             {profile.full_name || `@${profile.username}`}
+            <VerifiedBadge verified={profile.is_verified} className="size-5" />
           </h1>
           <p className="font-meta text-sm text-muted-foreground">
             @{profile.username}

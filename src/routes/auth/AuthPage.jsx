@@ -223,8 +223,8 @@ export default function AuthPage({ mode = 'login' }) {
               : 'Connecte-toi pour retrouver tes cours et ta promo.'}
           </p>
 
-          {/* Connexions sociales */}
-          <div className="mt-7 grid gap-2.5">
+          {/* Connexion sociale */}
+          <div className="mt-7">
             <Button
               type="button"
               variant="outline"
@@ -238,20 +238,6 @@ export default function AuthPage({ mode = 'login' }) {
                 <GoogleIcon className="size-4" />
               )}
               {isSignup ? 'S’inscrire' : 'Continuer'} avec Google
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              disabled={!!oauthLoading}
-              onClick={() => signInWith('apple')}
-            >
-              {oauthLoading === 'apple' ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <AppleIcon className="size-4" />
-              )}
-              {isSignup ? 'S’inscrire' : 'Continuer'} avec Apple
             </Button>
           </div>
 
@@ -373,10 +359,3 @@ function GoogleIcon({ className }) {
   )
 }
 
-function AppleIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M16.36 12.78c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.18-1.72-1.35-.14-2.64.79-3.33.79-.69 0-1.74-.77-2.87-.75-1.47.02-2.84.86-3.6 2.18-1.54 2.67-.39 6.62 1.1 8.79.73 1.06 1.6 2.25 2.74 2.21 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.15.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.3-.88-2.32-3.5ZM14.2 6.02c.6-.73 1.01-1.75.9-2.77-.87.04-1.92.58-2.55 1.31-.56.64-1.05 1.68-.92 2.67.97.08 1.96-.49 2.57-1.21Z" />
-    </svg>
-  )
-}

@@ -18,6 +18,7 @@ import {
   usePopularCollections,
 } from '@/lib/queries/collections'
 import { UserAvatar } from '@/components/social/UserAvatar'
+import { VerifiedBadge } from '@/components/social/VerifiedBadge'
 import { FollowButton } from '@/components/social/FollowButton'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -87,8 +88,9 @@ function PeopleResults({ search }) {
             <UserAvatar profile={p} className="size-11" />
           </Link>
           <Link to={`/app/u/${p.username}`} className="min-w-0 flex-1">
-            <p className="truncate font-medium hover:text-primary">
+            <p className="flex items-center gap-1 truncate font-medium hover:text-primary">
               {p.full_name || `@${p.username}`}
+              <VerifiedBadge verified={p.is_verified} />
             </p>
             <p className="truncate font-meta text-xs text-muted-foreground">
               @{p.username}

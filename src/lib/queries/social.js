@@ -5,7 +5,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
 const POST_MEDIA_BUCKET = 'post-media'
 
 const POST_SELECT =
-  '*, author:profiles!posts_author_id_fkey(id, username, full_name, avatar_url), ' +
+  '*, author:profiles!posts_author_id_fkey(id, username, full_name, avatar_url, is_verified), ' +
   'collection:collections(id, title, visibility), ' +
   'media:post_media(id, storage_path), likes(user_id), comments(count)'
 
@@ -412,7 +412,7 @@ export function useDiscoverProfiles(search = '') {
     queryFn: async () => {
       let query = supabase
         .from('profiles')
-        .select('id, username, full_name, avatar_url, promo, bio')
+        .select('id, username, full_name, avatar_url, promo, bio, is_verified')
         .not('username', 'is', null)
         .neq('id', user.id)
         .limit(30)

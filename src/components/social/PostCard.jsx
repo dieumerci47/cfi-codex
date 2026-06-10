@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useDeletePost, useToggleLike } from '@/lib/queries/social'
 import { UserAvatar } from '@/components/social/UserAvatar'
+import { VerifiedBadge } from '@/components/social/VerifiedBadge'
 import { CommentsDialog } from '@/components/social/CommentsDialog'
 import {
   DropdownMenu,
@@ -49,9 +50,10 @@ export function PostCard({ post }) {
         <div className="min-w-0 flex-1">
           <Link
             to={`/app/u/${post.author?.username}`}
-            className="font-medium hover:text-primary"
+            className="inline-flex items-center gap-1 font-medium hover:text-primary"
           >
             {post.author?.full_name || `@${post.author?.username}`}
+            <VerifiedBadge verified={post.author?.is_verified} />
           </Link>
           <p className="font-meta text-xs text-muted-foreground">
             @{post.author?.username} ·{' '}

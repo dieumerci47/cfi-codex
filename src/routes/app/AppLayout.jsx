@@ -10,14 +10,24 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { useMyProfile } from '@/lib/queries/profile'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useChatRealtime, useTotalUnread } from '@/lib/queries/chat'
 import { useNotificationsRealtime } from '@/lib/queries/notifications'
 import { useStatusesRealtime } from '@/lib/queries/statuses'
 import { useMyFollowing } from '@/lib/queries/social'
 import { NotificationsBell } from '@/components/social/NotificationsBell'
+import { UserAvatar } from '@/components/social/UserAvatar'
+import { VerifiedBadge } from '@/components/social/VerifiedBadge'
 
 const NAV = [
   { to: '/app', label: 'Feed', icon: Home, end: true },
@@ -27,17 +37,10 @@ const NAV = [
 ]
 
 export default function AppLayout() {
-  const { signOut } = useAuth()
-  const navigate = useNavigate()
   useChatRealtime() // abonnement live au chat (badge + fils)
   useNotificationsRealtime() // abonnement live aux notifications (cloche)
   useStatusesRealtime() // abonnement live aux statuts (ajout/suppression)
   useMyFollowing() // préchauffe « qui je suis » → boutons Suivre sans flash
-
-  const handleSignOut = async () => {
-    await signOut()
-    navigate('/')
-  }
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr]">
@@ -57,35 +60,26 @@ export default function AppLayout() {
           </Button>
         </nav>
 
-        <div className="flex items-center justify-between border-t border-border pt-4">
-          <ThemeToggle />
-          <Button variant="ghost" size="sm" onClick={handleSignOut}>
-            <LogOut className="size-4" /> Quitter
-          </Button>
-        </div>
+        <SidebarProfile />
       </aside>
 
       {/* Colonne principale */}
       <div className="flex min-h-dvh flex-col">
         {/* Barre du haut (toutes tailles) — accès Messages en haut à droite */}
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/80 px-4 py-2.5 backdrop-blur">
-          <span className="flex items-center gap-2 lg:invisible">
-            <LogoMark className="size-7" />
-            <span className="font-display text-lg font-semibold">Codex</span>
-          </span>
+          {/* Gauche : nom (mobile) + bascule de thème */}
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-2 lg:hidden">
+              <LogoMark className="size-7" />
+              <span className="font-display text-lg font-semibold">Codex</span>
+            </span>
+            <ThemeToggle />
+          </div>
+          {/* Droite : notifications, messages, menu profil */}
           <div className="flex items-center gap-1">
             <NotificationsBell />
             <MessagesButton />
-            <ThemeToggle className="lg:hidden" />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleSignOut}
-              aria-label="Se déconnecter"
-              className="lg:hidden"
-            >
-              <LogOut className="size-5" />
-            </Button>
+            <ProfileMenu />
           </div>
         </header>
 
@@ -101,6 +95,75 @@ export default function AppLayout() {
         ))}
       </nav>
     </div>
+  )
+}
+
+/** Menu compte (header) : cercle avatar → nom, email, profil, déconnexion. */
+function ProfileMenu() {
+  const { user, signOut } = useAuth()
+  const { data: profile } = useMyProfile()
+  const navigate = useNavigate()
+
+  const handleSignOut = async () => {
+    await signOut()
+    navigate('/')
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="ml-1 rounded-full outline-none ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label="Mon compte"
+      >
+        <UserAvatar profile={profile} className="size-8" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <div className="flex items-center gap-3 px-2 py-2">
+          <UserAvatar profile={profile} className="size-10" />
+          <div className="min-w-0">
+            <p className="flex items-center gap-1 truncate text-sm font-medium">
+              {profile?.full_name || profile?.username || 'Mon compte'}
+              <VerifiedBadge verified={profile?.is_verified} />
+            </p>
+            <p className="truncate font-meta text-xs text-muted-foreground">
+              {user?.email}
+            </p>
+          </div>
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/app/me">
+            <UserIcon className="size-4" /> Mon profil
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
+          <LogOut className="size-4" /> Se déconnecter
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** Mini-carte profil en bas de la sidebar desktop (avatar + nom + email). */
+function SidebarProfile() {
+  const { user } = useAuth()
+  const { data: profile } = useMyProfile()
+  return (
+    <Link
+      to="/app/me"
+      className="flex items-center gap-3 rounded-lg border-t border-border px-1 pt-4 transition-colors hover:text-primary"
+    >
+      <UserAvatar profile={profile} className="size-9" />
+      <div className="min-w-0">
+        <p className="flex items-center gap-1 truncate text-sm font-medium">
+          {profile?.full_name || profile?.username || 'Mon compte'}
+          <VerifiedBadge verified={profile?.is_verified} />
+        </p>
+        <p className="truncate font-meta text-xs text-muted-foreground">
+          {user?.email}
+        </p>
+      </div>
+    </Link>
   )
 }
 
