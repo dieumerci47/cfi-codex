@@ -478,6 +478,24 @@ export function useDeleteResource(collectionId) {
   })
 }
 
+/**
+ * Recherche plein-texte dans les cours (titres/descriptions de collections,
+ * noms de fichiers, contenu des notes). La visibilité est gérée par la RLS.
+ */
+export function useSearchCourses(query) {
+  const { user } = useAuth()
+  const q = query.trim()
+  return useQuery({
+    queryKey: ['search-courses', q],
+    enabled: !!user?.id && q.length >= 2,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('search_courses', { q })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
 /** URL signée temporaire pour lire un fichier du bucket privé. */
 export async function getSignedUrl(storagePath, expiresIn = 3600) {
   const { data, error } = await supabase.storage
