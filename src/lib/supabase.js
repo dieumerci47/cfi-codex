@@ -9,7 +9,7 @@ if (!isSupabaseConfigured) {
   // Message explicite en dev : évite des erreurs obscures plus loin.
   // On ne fait pas planter l'app (la landing reste consultable sans backend).
   console.error(
-    '[Codex] Variables Supabase manquantes. Crée un fichier .env.local à partir de .env.example ' +
+    '[Cirasphère] Variables Supabase manquantes. Crée un fichier .env.local à partir de .env.example ' +
       'avec VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.',
   )
 }

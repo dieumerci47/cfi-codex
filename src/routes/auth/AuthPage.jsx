@@ -148,7 +148,7 @@ export default function AuthPage({ mode = 'login' }) {
         {isSignup ? (
           <div className="relative max-w-md">
             <h2 className="font-display text-3xl leading-tight">
-              Rejoins le Codex de ton école.
+              Rejoins la Cirasphère de ton école.
             </h2>
             <ul className="mt-6 space-y-3">
               {BENEFITS.map((b) => (
@@ -168,7 +168,7 @@ export default function AuthPage({ mode = 'login' }) {
               ans. »
             </blockquote>
             <p className="mt-4 font-meta text-sm text-muted-foreground">
-              — la promesse Codex
+              — la promesse Cirasphère
             </p>
           </div>
         )}
@@ -219,7 +219,7 @@ export default function AuthPage({ mode = 'login' }) {
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {isSignup
-              ? 'Quelques secondes, et ta promo te retrouve sur Codex.'
+              ? 'Quelques secondes, et ta promo te retrouve sur Cirasphère.'
               : 'Connecte-toi pour retrouver tes cours et ta promo.'}
           </p>
 

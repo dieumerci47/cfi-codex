@@ -22,6 +22,7 @@ import {
   useReplyToStatus,
 } from '@/lib/queries/statuses'
 import { UserAvatar } from '@/components/social/UserAvatar'
+import { StatusBarSkeleton } from '@/components/skeletons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -50,11 +51,14 @@ export function StatusBar() {
     if (index >= 0) setViewer({ groups: orderedGroups, index })
   }
 
+  // Premier chargement : on montre des cercles fantômes plutôt que du vide.
+  if (isLoading && !data) return <StatusBarSkeleton />
+
   return (
     <div className="flex gap-3 overflow-x-auto pb-1">
       <AddStatusTile mine={mine} onViewMine={() => openViewer(mine?.author.id)} />
 
-      {isLoading && !data ? null : others.map((g) => (
+      {others.map((g) => (
         <StatusTile key={g.author.id} group={g} onClick={() => openViewer(g.author.id)} />
       ))}
 

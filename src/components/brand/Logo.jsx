@@ -1,8 +1,8 @@
 import { cn } from '@/lib/utils'
 
 /**
- * Marque Codex : un "C" gravé dans une pastille (métaphore sceau/grimoire),
- * avec une encoche émeraude évoquant un signet / une branche de repo.
+ * Marque Cirasphère : un "C" gravé dans une pastille, avec un point braise
+ * évoquant un nœud de la sphère / un signet.
  */
 export function LogoMark({ className }) {
   return (
@@ -43,7 +43,7 @@ export function Logo({ className, showWordmark = true }) {
       <LogoMark />
       {showWordmark && (
         <span className="font-display text-xl font-semibold tracking-tight">
-          Codex
+          Cirasphère
         </span>
       )}
     </span>

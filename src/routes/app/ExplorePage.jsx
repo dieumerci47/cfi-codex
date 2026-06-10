@@ -74,7 +74,7 @@ function PeopleResults({ search }) {
         text={
           search
             ? 'Aucun résultat pour cette recherche.'
-            : 'Quand d’autres élèves rejoindront Codex, ils apparaîtront ici.'
+            : 'Quand d’autres élèves rejoindront Cirasphère, ils apparaîtront ici.'
         }
       />
     )

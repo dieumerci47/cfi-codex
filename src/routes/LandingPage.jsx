@@ -1,13 +1,17 @@
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
+  BadgeCheck,
   Flame,
   FolderTree,
   GitBranch,
   Heart,
   MessagesSquare,
   Radio,
+  Search,
   ShieldCheck,
+  Star,
+  Video,
 } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -64,7 +68,7 @@ function Hero() {
       <div>
         <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 font-meta text-xs text-muted-foreground backdrop-blur">
           <span className="size-1.5 rounded-full bg-primary" />
-          le réseau de ton école
+          la communauté du savoir · CFI-CIRAS
         </span>
 
         <h1 className="mt-6 text-balance text-5xl leading-[0.98] font-semibold sm:text-6xl lg:text-7xl">
@@ -73,11 +77,14 @@ function Hero() {
         </h1>
 
         <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-          Codex, c’est le{' '}
+          Cirasphère, c’est le{' '}
           <span className="font-medium text-foreground">GitHub de tes cours</span>{' '}
           mêlé au meilleur du réseau social. Archive tes notes et tes PDF,
-          retrouve-les sur n’importe quel appareil — même dans deux ans — suis
-          tes amis et partage ce que tu apprends.
+          <span className="font-medium text-foreground">
+            {' '}
+            retrouve-les en un mot-clé
+          </span>
+          , suis ta promo et partage ce que tu apprends.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -97,16 +104,16 @@ function Hero() {
         </p>
       </div>
 
-      <CodexCard />
+      <CourseCard />
     </section>
   )
 }
 
 /** Carte décorative : une "collection" de cours façon repo. */
-function CodexCard() {
+function CourseCard() {
   return (
     <div className="relative">
-      <div className="absolute -inset-3 -z-10 rounded-3xl bg-gradient-to-br from-primary/10 to-ember/10 blur-2xl" />
+      <div className="absolute -inset-3 -z-10 rounded-3xl bg-linear-to-br from-primary/10 to-ember/10 blur-2xl" />
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/40 edge-hairline">
         {/* Barre de titre type éditeur */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -118,7 +125,7 @@ function CodexCard() {
             </span>
           </div>
           <span className="inline-flex items-center gap-1 rounded-full bg-ember/15 px-2 py-0.5 font-meta text-xs text-ember">
-            <Flame className="size-3.5" /> 14
+            <Star className="size-3.5" /> 14
           </span>
         </div>
 
@@ -142,7 +149,7 @@ function CodexCard() {
             <Heart className="size-3.5 text-ember" /> 32
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <GitBranch className="size-3.5" /> 8 forks
+            <BadgeCheck className="size-3.5 fill-primary text-background" /> certifié
           </span>
           <span className="ml-auto">maj. il y a 2 h</span>
         </div>
@@ -172,10 +179,45 @@ const FEATURES = [
     soon: false,
   },
   {
+    icon: Search,
+    tag: 'révision express',
+    title: 'Recherche plein-texte',
+    desc: 'Tape un mot-clé et retrouve le bon titre, fichier ou note en deux secondes.',
+    soon: false,
+  },
+  {
+    icon: Star,
+    tag: 'depuis GitHub',
+    title: 'Étoiles & cours populaires',
+    desc: 'Étoile les meilleures ressources. Les cours les plus utiles remontent pour toute la promo.',
+    soon: false,
+  },
+  {
     icon: Heart,
     tag: 'depuis Instagram',
     title: 'Feed & abonnements',
     desc: 'Suis tes amis, publie tes photos, vois ce que ta promo partage en temps réel.',
+    soon: false,
+  },
+  {
+    icon: MessagesSquare,
+    tag: 'depuis WhatsApp',
+    title: 'Chats & groupes',
+    desc: 'Messages privés entre amis et groupes de classe, en temps réel, sans quitter l’app.',
+    soon: false,
+  },
+  {
+    icon: Radio,
+    tag: 'depuis WhatsApp',
+    title: 'Statuts éphémères',
+    desc: 'Partage un moment de campus qui disparaît après 24 h — et vois qui l’a vu.',
+    soon: false,
+  },
+  {
+    icon: BadgeCheck,
+    tag: 'confiance',
+    title: 'Comptes certifiés',
+    desc: 'Profs et délégués reconnaissables d’une coche : tu sais à qui te fier.',
     soon: false,
   },
   {
@@ -186,21 +228,7 @@ const FEATURES = [
     soon: true,
   },
   {
-    icon: MessagesSquare,
-    tag: 'depuis WhatsApp',
-    title: 'Chats & groupes',
-    desc: 'Discussions privées et groupes de classe pour t’entraider sans quitter l’app.',
-    soon: true,
-  },
-  {
-    icon: Radio,
-    tag: 'depuis WhatsApp',
-    title: 'Statuts éphémères',
-    desc: 'Partage un moment de campus qui disparaît après 24 h.',
-    soon: true,
-  },
-  {
-    icon: ArrowRight,
+    icon: Video,
     tag: 'depuis TikTok',
     title: 'Scroll vidéo',
     desc: 'Des capsules de révision en format court, à dérouler entre deux cours.',
@@ -262,12 +290,17 @@ function ClosingCta() {
               'radial-gradient(30rem 20rem at 50% 0%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 70%)',
           }}
         />
+        <img
+          src="/logo/logo.png"
+          alt="Cirasphère"
+          className="mx-auto mb-6 w-44 rounded-2xl bg-white p-3 shadow-lg shadow-black/20 sm:w-52"
+        />
         <h2 className="mx-auto max-w-2xl text-balance text-4xl font-semibold sm:text-5xl">
-          Commence ton codex aujourd’hui.
+          Rejoins Cirasphère aujourd’hui.
         </h2>
         <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-          Rejoins ton école, dépose ton premier cours et ne perds plus jamais
-          une note.
+          La communauté du savoir, l’avenir ensemble : dépose ton premier cours
+          et ne perds plus jamais une note.
         </p>
         <Button asChild size="lg" className="mt-8 glow-primary">
           <Link to="/signup">
@@ -285,7 +318,7 @@ function SiteFooter() {
       <div className="flex flex-col items-center justify-between gap-4 border-t border-border pt-8 sm:flex-row">
         <Logo />
         <p className="font-meta text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Codex · réseau scolaire · projet portfolio
+          © {new Date().getFullYear()} Cirasphère · CFI-CIRAS · projet portfolio
         </p>
       </div>
     </footer>

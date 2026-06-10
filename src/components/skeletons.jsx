@@ -24,6 +24,20 @@ export function PostCardSkeleton() {
   )
 }
 
+/** Barre de statuts (cercles + libellé) pendant le chargement. */
+export function StatusBarSkeleton({ count = 5 }) {
+  return (
+    <div className="flex gap-3 overflow-hidden pb-1">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex w-16 shrink-0 flex-col items-center gap-1">
+          <Skeleton className="size-14 rounded-full" />
+          <Skeleton className="h-2.5 w-12" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** Liste de posts. */
 export function FeedSkeleton({ count = 3 }) {
   return (

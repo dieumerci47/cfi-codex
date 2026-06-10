@@ -63,7 +63,7 @@ export default function OnboardingPage() {
         promo: values.promo || null,
         bio: values.bio || null,
       })
-      toast.success('Bienvenue dans le Codex ✦')
+      toast.success('Bienvenue sur Cirasphère ✦')
       navigate('/app')
     } catch (err) {
       toast.error(err.message ?? 'Une erreur est survenue.')
@@ -79,7 +79,7 @@ export default function OnboardingPage() {
         <p className="font-meta text-xs text-primary">étape finale</p>
         <h1 className="mt-2 text-3xl font-semibold">Crée ton profil</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          C’est ainsi que ta promo te reconnaîtra sur Codex.
+          C’est ainsi que ta promo te reconnaîtra sur Cirasphère.
         </p>
 
         <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4">
@@ -145,7 +145,7 @@ export default function OnboardingPage() {
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <>
-                Entrer dans le Codex <ArrowRight className="size-4" />
+                Entrer sur Cirasphère <ArrowRight className="size-4" />
               </>
             )}
           </Button>

@@ -71,7 +71,7 @@ export default function AppLayout() {
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-2 lg:hidden">
               <LogoMark className="size-7" />
-              <span className="font-display text-lg font-semibold">Codex</span>
+              <span className="font-display text-lg font-semibold">Cirasphère</span>
             </span>
             <ThemeToggle />
           </div>
