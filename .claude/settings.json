@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(try { $r = Invoke-WebRequest -Uri 'http://localhost:5180/' -UseBasicParsing -TimeoutSec 8; \"HTTP $\\($r.StatusCode\\)\"; if \\($r.Content -match 'src=./src/main.jsx.'\\) { 'main.jsx present' }; if \\($r.Content -match 'Codex'\\) { 'title Codex present' } } catch { \"ERR: $\\($_.Exception.Message\\)\" })",
+      "mcp__claude_ai_Supabase__list_organizations",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__restore_project",
+      "mcp__claude_ai_Supabase__get_project",
+      "mcp__claude_ai_Supabase__get_project_url",
+      "mcp__claude_ai_Supabase__get_publishable_keys",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__get_advisors",
+      "PowerShell(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'vite' -and $_.CommandLine -match '5180' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; 'old dev server stopped')",
+      "Bash(node scripts/smoke-test.mjs)",
+      "Bash(node scripts/social-smoke.mjs)",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(node scripts/seed-class-demo.mjs)",
+      "Bash(git --version)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)"
+    ]
+  }
+}

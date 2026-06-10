@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#15140f" />
+    <meta
+      name="description"
+      content="Le Codex — le réseau de partage de cours de ton école. Garde tes cours à vie, suis tes amis, partage ton savoir."
+    />
+    <title>Codex — Le savoir de ton école, à vie</title>
+
+    <!-- Évite le flash de thème clair avant l'hydratation React -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('codex-theme')
+          var theme = stored || 'dark'
+          var root = document.documentElement
+          root.classList.remove('light', 'dark')
+          if (theme === 'system') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+          }
+          root.classList.add(theme)
+        } catch (e) {
+          document.documentElement.classList.add('dark')
+        }
+      })()
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
