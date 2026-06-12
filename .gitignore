@@ -31,3 +31,5 @@ dist-ssr
 # Outils locaux
 .claude/settings.local.json
 .qodo/
+
+.vercel
