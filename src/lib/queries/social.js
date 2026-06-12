@@ -180,7 +180,7 @@ export function useComments(postId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('comments')
-        .select('*, author:profiles(username, full_name, avatar_url)')
+        .select('*, author:profiles(id, username, full_name, avatar_url, is_verified)')
         .eq('post_id', postId)
         .order('created_at', { ascending: true })
       if (error) throw error
@@ -214,9 +214,11 @@ export function useAddComment(postId) {
         body: body.trim(),
         created_at: new Date().toISOString(),
         author: {
+          id: user.id,
           username: me?.username ?? 'moi',
           full_name: me?.full_name ?? null,
           avatar_url: me?.avatar_url ?? null,
+          is_verified: me?.is_verified ?? false,
         },
         _optimistic: true,
       }
@@ -243,6 +245,43 @@ export function useAddComment(postId) {
       ctx?.prev?.forEach(([key, data]) => qc.setQueryData(key, data))
     },
     // Resynchronise le vrai commentaire (id + horodatage serveur).
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['comments', postId] }),
+  })
+}
+
+/** Supprime un commentaire (optimiste : retire + décrémente le compteur). */
+export function useDeleteComment(postId) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (commentId) => {
+      const { error } = await supabase.from('comments').delete().eq('id', commentId)
+      if (error) throw error
+    },
+    onMutate: async (commentId) => {
+      await qc.cancelQueries({ queryKey: ['comments', postId] })
+      const prevComments = qc.getQueryData(['comments', postId])
+      qc.setQueryData(['comments', postId], (old) =>
+        (old ?? []).filter((c) => c.id !== commentId),
+      )
+      const dec = (list) =>
+        list?.map((p) =>
+          p.id === postId
+            ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 0) - 1) }
+            : p,
+        )
+      const prev = [
+        ...qc.getQueriesData({ queryKey: ['feed'] }),
+        ...qc.getQueriesData({ queryKey: ['user-posts'] }),
+      ]
+      qc.setQueriesData({ queryKey: ['feed'] }, dec)
+      qc.setQueriesData({ queryKey: ['user-posts'] }, dec)
+      return { prevComments, prev }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prevComments !== undefined)
+        qc.setQueryData(['comments', postId], ctx.prevComments)
+      ctx?.prev?.forEach(([key, data]) => qc.setQueryData(key, data))
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['comments', postId] }),
   })
 }
@@ -372,7 +411,7 @@ export function useFriends(search = '') {
 
       let query = supabase
         .from('profiles')
-        .select('id, username, full_name, avatar_url, promo')
+        .select('id, username, full_name, avatar_url, promo, is_verified')
         .in('id', friendIds)
       if (search.trim()) {
         query = query.or(

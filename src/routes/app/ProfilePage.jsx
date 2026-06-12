@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Camera,
+  Check,
   FolderTree,
   Globe,
   Loader2,
@@ -10,7 +11,10 @@ import {
   Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
 
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
   useMyProfile,
@@ -21,22 +25,15 @@ import {
 import { useCollections } from '@/lib/queries/collections'
 import { useUserPosts, useFollowCounts, useIsFriend } from '@/lib/queries/social'
 import { useStartDM } from '@/lib/queries/chat'
+import { useStories } from '@/lib/queries/statuses'
+import { CountUp, prefersReducedMotion } from '@/components/motion'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { VerifiedBadge } from '@/components/social/VerifiedBadge'
+import { StatusViewer } from '@/components/social/StatusBar'
 import { FollowButton } from '@/components/social/FollowButton'
 import { PostCard } from '@/components/social/PostCard'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProfileSkeleton } from '@/components/skeletons'
 
@@ -67,13 +64,103 @@ export default function ProfilePage() {
 }
 
 function ProfileView({ profile, self }) {
-  const { data: counts, isPending: countsLoading } = useFollowCounts(profile.id)
+  const { data: counts } = useFollowCounts(profile.id)
   const { data: collections } = useCollections(profile.id)
   const { data: posts } = useUserPosts(profile.id)
   const { data: isFriend } = useIsFriend(profile.id)
+  const { groups, storyOf } = useStories()
   const startDM = useStartDM()
+  const update = useUpdateProfile()
+  const uploadAvatar = useUploadAvatar()
   const navigate = useNavigate()
+  const fileInput = useRef(null)
+  const [storyIndex, setStoryIndex] = useState(null)
+  const scope = useRef(null)
+
+  // Édition en ligne (pas de popup) : on bascule les champs en place.
   const [editing, setEditing] = useState(false)
+  const [fullName, setFullName] = useState(profile.full_name ?? '')
+  const [promo, setPromo] = useState(profile.promo ?? '')
+  const [bio, setBio] = useState(profile.bio ?? '')
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url ?? null)
+  const [preview, setPreview] = useState(null) // aperçu local avant upload
+  const busy = update.isPending || uploadAvatar.isPending
+
+  // Story de la personne (cachée en édition et sur mon propre profil)
+  const story = self || editing ? null : storyOf(profile.id)
+
+  const startEdit = () => {
+    setFullName(profile.full_name ?? '')
+    setPromo(profile.promo ?? '')
+    setBio(profile.bio ?? '')
+    setAvatarUrl(profile.avatar_url ?? null)
+    setPreview(null)
+    setEditing(true)
+  }
+
+  const cancelEdit = () => {
+    setEditing(false)
+    setPreview(null)
+  }
+
+  const pickAvatar = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setPreview(URL.createObjectURL(file))
+    try {
+      const url = await uploadAvatar.mutateAsync(file)
+      setAvatarUrl(url)
+    } catch (err) {
+      toast.error(err.message ?? 'Échec du téléversement de l’avatar.')
+      setPreview(null)
+    }
+  }
+
+  const saveEdit = async () => {
+    if (!fullName.trim()) {
+      toast.error('Indique ton nom.')
+      return
+    }
+    try {
+      await update.mutateAsync({
+        full_name: fullName.trim(),
+        promo: promo.trim() || null,
+        bio: bio.trim() || null,
+        avatar_url: avatarUrl,
+      })
+      toast.success('Profil mis à jour ✦')
+      setEditing(false)
+      setPreview(null)
+    } catch (err) {
+      toast.error(err.message ?? 'Erreur.')
+    }
+  }
+
+  // Entrée orchestrée : bannière, avatar qui éclôt, identité, stats, onglets.
+  useGSAP(
+    () => {
+      if (prefersReducedMotion()) return
+      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+      tl.from('[data-pf="banner"]', { opacity: 0, duration: 0.5 })
+        .from(
+          '[data-pf="avatar"]',
+          { scale: 0.5, opacity: 0, duration: 0.55, ease: 'back.out(1.7)' },
+          '-=0.25',
+        )
+        .from(
+          '[data-pf="action"]',
+          { x: 12, opacity: 0, duration: 0.4 },
+          '-=0.35',
+        )
+        .from(
+          '[data-pf="reveal"]',
+          { y: 16, opacity: 0, duration: 0.45, stagger: 0.08 },
+          '-=0.2',
+        )
+    },
+    { scope },
+  )
 
   const onMessage = async () => {
     try {
@@ -90,9 +177,12 @@ function ProfileView({ profile, self }) {
     : collections?.filter((c) => c.visibility === 'public')
 
   return (
-    <div className="mx-auto w-full max-w-2xl pb-6">
+    <div ref={scope} className="mx-auto w-full max-w-2xl pb-6">
       {/* Bannière éditoriale */}
-      <div className="relative h-36 overflow-hidden border-b border-border/60 sm:h-44">
+      <div
+        data-pf="banner"
+        className="relative h-36 overflow-hidden border-b border-border/60 sm:h-44"
+      >
         <div className="absolute inset-0 bg-linear-to-tr from-primary/25 via-background to-ember/20" />
         <div className="absolute -left-10 bottom-[-60%] size-72 rounded-full bg-primary/20 blur-3xl" />
         <div className="absolute right-0 top-[-40%] size-56 rounded-full bg-ember/15 blur-3xl" />
@@ -101,15 +191,91 @@ function ProfileView({ profile, self }) {
       <div className="px-4 sm:px-6">
         {/* Avatar superposé + actions */}
         <div className="-mt-12 flex items-end justify-between gap-3 sm:-mt-14">
-          <UserAvatar
-            profile={profile}
-            className="size-24 rounded-2xl ring-4 ring-background sm:size-28"
-          />
-          <div className="mb-1 flex items-center gap-2">
+          {editing ? (
+            <span data-pf="avatar" className="block shrink-0">
+              <button
+                type="button"
+                onClick={() => fileInput.current?.click()}
+                aria-label="Changer la photo de profil"
+                className="group relative block rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <UserAvatar
+                  profile={{ ...profile, avatar_url: preview || avatarUrl }}
+                  className="size-24 rounded-2xl ring-4 ring-background sm:size-28"
+                />
+                <span className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/45 text-white">
+                  {uploadAvatar.isPending ? (
+                    <Loader2 className="size-6 animate-spin" />
+                  ) : (
+                    <Camera className="size-6" />
+                  )}
+                </span>
+              </button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={pickAvatar}
+              />
+            </span>
+          ) : story ? (
+            <button
+              type="button"
+              data-pf="avatar"
+              onClick={() => setStoryIndex(story.index)}
+              aria-label={`Voir la story de ${profile.full_name || profile.username}`}
+              className={cn(
+                'block shrink-0 rounded-[1.4rem] p-1 outline-none transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-ring',
+                story.allSeen
+                  ? 'bg-border'
+                  : 'bg-linear-to-tr from-primary to-ember',
+              )}
+            >
+              <UserAvatar
+                profile={profile}
+                className="size-24 rounded-2xl ring-4 ring-background sm:size-28"
+              />
+            </button>
+          ) : (
+            <span data-pf="avatar" className="block shrink-0">
+              <UserAvatar
+                profile={profile}
+                className="size-24 rounded-2xl ring-4 ring-background sm:size-28"
+              />
+            </span>
+          )}
+          <div data-pf="action" className="mb-1 flex items-center gap-2">
             {self ? (
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                <Pencil className="size-4" /> Modifier le profil
-              </Button>
+              editing ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={cancelEdit}
+                    disabled={busy}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={saveEdit}
+                    disabled={busy || !fullName.trim()}
+                  >
+                    {update.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Check className="size-4" /> Enregistrer
+                      </>
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" size="sm" onClick={startEdit}>
+                  <Pencil className="size-4" /> Modifier le profil
+                </Button>
+              )
             ) : (
               <>
                 {isFriend && (
@@ -133,39 +299,82 @@ function ProfileView({ profile, self }) {
           </div>
         </div>
 
-        {/* Identité */}
-        <div className="mt-3">
-          <h1 className="flex items-center gap-1.5 font-display text-2xl font-semibold leading-tight">
-            {profile.full_name || `@${profile.username}`}
-            <VerifiedBadge verified={profile.is_verified} className="size-5" />
-          </h1>
-          <p className="font-meta text-sm text-muted-foreground">
-            @{profile.username}
-            {profile.promo && (
-              <span className="ml-1.5 rounded bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground">
-                {profile.promo}
-              </span>
-            )}
-          </p>
+        {/* Identité — bascule en champs éditables en place */}
+        <div data-pf="reveal" className="mt-3">
+          {editing ? (
+            <div className="space-y-3">
+              <input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                maxLength={60}
+                placeholder="Ton nom complet"
+                aria-label="Nom complet"
+                className="w-full rounded-none border-0 border-b border-border bg-transparent pb-1 font-display text-2xl font-semibold leading-tight outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary"
+              />
+              <p className="font-meta text-sm text-muted-foreground">
+                @{profile.username}{' '}
+                <span className="text-muted-foreground/70">
+                  (pseudo non modifiable)
+                </span>
+              </p>
+              <input
+                value={promo}
+                onChange={(e) => setPromo(e.target.value)}
+                maxLength={40}
+                placeholder="Promo / filière (optionnel)"
+                aria-label="Promo ou filière"
+                className="w-full max-w-xs rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none transition-colors focus:border-primary"
+              />
+              <div>
+                <Textarea
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  rows={3}
+                  maxLength={160}
+                  placeholder="Ce que tu étudies, ce que tu partages…"
+                  aria-label="Bio"
+                />
+                <p className="mt-1 text-right font-meta text-xs text-muted-foreground">
+                  {bio.length}/160
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h1 className="flex items-center gap-1.5 font-display text-2xl font-semibold leading-tight">
+                {profile.full_name || `@${profile.username}`}
+                <VerifiedBadge verified={profile.is_verified} className="size-5" />
+              </h1>
+              <p className="font-meta text-sm text-muted-foreground">
+                @{profile.username}
+                {profile.promo && (
+                  <span className="ml-1.5 rounded bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground">
+                    {profile.promo}
+                  </span>
+                )}
+              </p>
 
-          {profile.bio && (
-            <p className="mt-3 max-w-prose text-sm leading-relaxed">{profile.bio}</p>
+              {profile.bio && (
+                <p className="mt-3 max-w-prose text-sm leading-relaxed">
+                  {profile.bio}
+                </p>
+              )}
+            </>
           )}
+        </div>
 
-          <div className="mt-4 flex gap-5 font-meta text-sm">
-            <span>
-              <CountValue value={counts?.followers} loading={countsLoading} />{' '}
-              <span className="text-muted-foreground">abonnés</span>
-            </span>
-            <span>
-              <CountValue value={counts?.following} loading={countsLoading} />{' '}
-              <span className="text-muted-foreground">abonnements</span>
-            </span>
-          </div>
+        {/* Statistiques */}
+        <div
+          data-pf="reveal"
+          className="mt-4 grid grid-cols-3 divide-x divide-border/60 rounded-xl border border-border/60 bg-card/40 py-3 text-center"
+        >
+          <Stat value={counts?.followers ?? 0} label="abonnés" />
+          <Stat value={counts?.following ?? 0} label="abonnements" />
+          <Stat value={posts?.length ?? 0} label="posts" />
         </div>
 
         {/* Onglets */}
-        <Tabs defaultValue="collections" className="mt-6">
+        <Tabs data-pf="reveal" defaultValue="collections" className="mt-6">
           <TabsList>
             <TabsTrigger value="collections">
               Cours ({visibleCollections?.length ?? 0})
@@ -180,9 +389,9 @@ function ProfileView({ profile, self }) {
                   <Link
                     key={c.id}
                     to={`/app/collections/${c.id}`}
-                    className="group flex items-center gap-3 rounded-xl border border-border bg-card/60 p-4 transition-colors hover:border-primary/40"
+                    className="group flex items-center gap-3 rounded-xl border border-border bg-card/60 p-4 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20 active:translate-y-0"
                   >
-                    <span className="inline-flex size-10 items-center justify-center rounded-lg bg-primary/12 text-primary">
+                    <span className="inline-flex size-10 items-center justify-center rounded-lg bg-primary/12 text-primary transition-colors group-hover:bg-primary/20">
                       <FolderTree className="size-5" />
                     </span>
                     <div className="min-w-0 flex-1">
@@ -216,183 +425,26 @@ function ProfileView({ profile, self }) {
         </Tabs>
       </div>
 
-      {self && (
-        <EditProfileDialog
-          profile={profile}
-          open={editing}
-          onClose={() => setEditing(false)}
+      {storyIndex != null && (
+        <StatusViewer
+          groups={groups}
+          startIndex={storyIndex}
+          onClose={() => setStoryIndex(null)}
         />
       )}
     </div>
   )
 }
 
-function EditProfileDialog({ profile, open, onClose }) {
-  const update = useUpdateProfile()
-  const uploadAvatar = useUploadAvatar()
-  const fileInput = useRef(null)
-
-  const [fullName, setFullName] = useState(profile.full_name ?? '')
-  const [promo, setPromo] = useState(profile.promo ?? '')
-  const [bio, setBio] = useState(profile.bio ?? '')
-  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url ?? null)
-  const [preview, setPreview] = useState(null) // URL locale avant upload
-
-  const pickAvatar = async (e) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    setPreview(URL.createObjectURL(file))
-    try {
-      const url = await uploadAvatar.mutateAsync(file)
-      setAvatarUrl(url)
-    } catch (err) {
-      toast.error(err.message ?? 'Échec du téléversement de l’avatar.')
-      setPreview(null)
-    }
-  }
-
-  const submit = async (e) => {
-    e.preventDefault()
-    if (!fullName.trim()) {
-      toast.error('Indique ton nom.')
-      return
-    }
-    try {
-      await update.mutateAsync({
-        full_name: fullName.trim(),
-        promo: promo.trim() || null,
-        bio: bio.trim() || null,
-        avatar_url: avatarUrl,
-      })
-      toast.success('Profil mis à jour ✦')
-      onClose()
-    } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
-    }
-  }
-
+function Stat({ value, label }) {
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Modifier mon profil</DialogTitle>
-          <DialogDescription>
-            Mets à jour ta photo, ton nom, ta promo et ta bio.
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={submit} className="space-y-4">
-          {/* Avatar */}
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => fileInput.current?.click()}
-              className="group relative shrink-0 rounded-2xl"
-              aria-label="Changer l’avatar"
-            >
-              <UserAvatar
-                profile={{ ...profile, avatar_url: preview || avatarUrl }}
-                className="size-20 rounded-2xl"
-              />
-              <span className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100">
-                {uploadAvatar.isPending ? (
-                  <Loader2 className="size-5 animate-spin" />
-                ) : (
-                  <Camera className="size-5" />
-                )}
-              </span>
-            </button>
-            <div className="text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">Photo de profil</p>
-              <p className="font-meta text-xs">JPG ou PNG. Clique pour changer.</p>
-            </div>
-            <input
-              ref={fileInput}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={pickAvatar}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Pseudo</Label>
-            <Input value={`@${profile.username}`} disabled />
-            <p className="font-meta text-xs text-muted-foreground">
-              Le pseudo n’est pas modifiable.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="ep-name">Nom complet</Label>
-            <Input
-              id="ep-name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              maxLength={60}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="ep-promo">
-              Promo / filière{' '}
-              <span className="text-muted-foreground">(optionnel)</span>
-            </Label>
-            <Input
-              id="ep-promo"
-              value={promo}
-              onChange={(e) => setPromo(e.target.value)}
-              placeholder="L2 Informatique · 2025"
-              maxLength={40}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="ep-bio">
-              Bio <span className="text-muted-foreground">(optionnel)</span>
-            </Label>
-            <Textarea
-              id="ep-bio"
-              rows={3}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              maxLength={160}
-              placeholder="Ce que tu étudies, ce que tu partages…"
-            />
-            <p className="text-right font-meta text-xs text-muted-foreground">
-              {bio.length}/160
-            </p>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Annuler
-            </Button>
-            <Button
-              type="submit"
-              disabled={update.isPending || uploadAvatar.isPending || !fullName.trim()}
-            >
-              {update.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                'Enregistrer'
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <div className="px-2">
+      <p className="font-display text-lg font-semibold tabular-nums leading-none">
+        <CountUp value={value} />
+      </p>
+      <p className="mt-1 font-meta text-xs text-muted-foreground">{label}</p>
+    </div>
   )
-}
-
-function CountValue({ value, loading }) {
-  if (loading && value == null) {
-    return (
-      <span className="inline-block h-4 w-5 animate-pulse rounded bg-muted align-middle" />
-    )
-  }
-  return <strong className="text-base">{value ?? 0}</strong>
 }
 
 function EmptyTab({ label }) {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   FolderTree,
@@ -6,17 +6,23 @@ import {
   Globe,
   Plus,
   Loader2,
+  Clock,
   BookMarked,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
 
+import { cn } from '@/lib/utils'
 import {
   useCollections,
   useCreateCollection,
   useSubjects,
   useMemberCollections,
+  useCollectionsUnseen,
 } from '@/lib/queries/collections'
+import { RevealItem, prefersReducedMotion } from '@/components/motion'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,39 +44,60 @@ export default function CollectionsPage() {
   const mine = useCollections()
   const editing = useMemberCollections('editor')
   const followed = useMemberCollections('follower')
+  const { data: unseen } = useCollectionsUnseen()
+  const scope = useRef(null)
+
+  useGSAP(
+    () => {
+      if (prefersReducedMotion()) return
+      gsap.from('[data-rise]', {
+        y: 14,
+        opacity: 0,
+        duration: 0.5,
+        stagger: 0.08,
+        ease: 'power3.out',
+      })
+    },
+    { scope },
+  )
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
-      <div className="flex items-end justify-between gap-4">
+    <div ref={scope} className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
+      <div data-rise className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Mes cours</h1>
-          <p className="font-meta text-xs text-muted-foreground">
+          <h1 className="font-display text-2xl font-semibold tracking-tight">
+            Mes cours
+          </h1>
+          <p className="mt-0.5 font-meta text-xs text-muted-foreground">
             tes collections · accessibles partout, pour toujours
           </p>
         </div>
         <NewCollectionDialog />
       </div>
 
-      <Tabs defaultValue="mine" className="mt-6">
+      <Tabs data-rise defaultValue="mine" className="mt-6">
         <TabsList>
-          <TabsTrigger value="mine">Mes cours</TabsTrigger>
+          <TabsTrigger value="mine">
+            Mes cours ({mine.data?.length ?? 0})
+            {tabHasUnseen(mine.data, unseen) && <TabDot />}
+          </TabsTrigger>
           <TabsTrigger value="editing">
             Je collabore ({editing.data?.length ?? 0})
+            {tabHasUnseen(editing.data, unseen) && <TabDot />}
           </TabsTrigger>
           <TabsTrigger value="followed">
             Suivis ({followed.data?.length ?? 0})
+            {tabHasUnseen(followed.data, unseen) && <TabDot />}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="mine" className="mt-5">
-          <CollectionGrid
-            query={mine}
-            empty={<EmptyState />}
-          />
+          <CollectionGrid query={mine} unseen={unseen} empty={<EmptyState />} />
         </TabsContent>
         <TabsContent value="editing" className="mt-5">
           <CollectionGrid
             query={editing}
+            unseen={unseen}
             empty={
               <SimpleEmpty label="Aucune collaboration pour l’instant. Quand on t’invitera à éditer un cours, il apparaîtra ici." />
             }
@@ -79,6 +106,7 @@ export default function CollectionsPage() {
         <TabsContent value="followed" className="mt-5">
           <CollectionGrid
             query={followed}
+            unseen={unseen}
             empty={
               <SimpleEmpty label="Tu ne suis aucun cours. Ouvre un cours public et clique sur « Suivre »." />
             }
@@ -89,15 +117,32 @@ export default function CollectionsPage() {
   )
 }
 
-function CollectionGrid({ query, empty }) {
+/** Un onglet a-t-il au moins une collection avec des modifs non vues ? */
+function tabHasUnseen(list, unseen) {
+  if (!list || !unseen) return false
+  return list.some((c) => (unseen.get(c.id) ?? 0) > 0)
+}
+
+function TabDot() {
+  return (
+    <span className="ml-1.5 inline-block size-1.5 shrink-0 rounded-full bg-ember align-middle" />
+  )
+}
+
+function CollectionGrid({ query, empty, unseen }) {
   if (query.isLoading) {
     return <CollectionGridSkeleton />
   }
   if (!query.data?.length) return empty
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {query.data.map((c) => (
-        <CollectionCard key={c.id} collection={c} />
+    <div className="grid items-stretch gap-4 sm:grid-cols-2">
+      {query.data.map((c, i) => (
+        <CollectionCard
+          key={c.id}
+          collection={c}
+          index={i}
+          unseenCount={unseen?.get(c.id) ?? 0}
+        />
       ))}
     </div>
   )
@@ -111,64 +156,88 @@ function SimpleEmpty({ label }) {
   )
 }
 
-function CollectionCard({ collection }) {
+function CollectionCard({ collection, index = 0, unseenCount = 0 }) {
   const isPrivate = collection.visibility === 'private'
   return (
-    <Link
-      to={`/app/collections/${collection.id}`}
-      className="group flex flex-col rounded-xl border border-border bg-card/60 p-5 transition-colors hover:border-primary/40"
-    >
-      <div className="flex items-center justify-between">
-        <span className="inline-flex size-10 items-center justify-center rounded-lg bg-primary/12 text-primary">
-          <FolderTree className="size-5" />
-        </span>
-        <span className="inline-flex items-center gap-1 font-meta text-xs text-muted-foreground">
-          {isPrivate ? (
-            <>
-              <Lock className="size-3.5" /> privé
-            </>
-          ) : (
-            <>
-              <Globe className="size-3.5" /> public
-            </>
-          )}
-        </span>
-      </div>
+    <RevealItem delay={Math.min(index, 8) * 0.04} className="h-full">
+      <Link
+        to={`/app/collections/${collection.id}`}
+        className={cn(
+          'group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-card/60 p-5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20',
+          unseenCount > 0
+            ? 'border-ember/40 hover:border-ember/60'
+            : 'border-border hover:border-primary/30',
+        )}
+      >
+        {/* halo au survol */}
+        <div className="pointer-events-none absolute -right-12 -top-12 size-32 rounded-full bg-primary/10 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100" />
 
-      <h3 className="mt-4 text-lg font-semibold group-hover:text-primary">
-        {collection.title}
-      </h3>
-      {collection.description && (
-        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-          {collection.description}
-        </p>
-      )}
-
-      <div className="mt-4 flex items-center gap-2 font-meta text-xs text-muted-foreground">
-        {collection.subject?.code && (
-          <span className="rounded bg-secondary px-1.5 py-0.5 text-secondary-foreground">
-            {collection.subject.code}
+        <div className="flex items-center justify-between">
+          <span className="relative inline-flex size-11 items-center justify-center rounded-xl bg-linear-to-br from-primary/20 to-ember/15 text-primary transition-transform duration-200 group-hover:scale-105">
+            <FolderTree className="size-5" />
+            {unseenCount > 0 && (
+              <span className="absolute -right-1 -top-1 size-2.5 rounded-full bg-ember ring-2 ring-card" />
+            )}
           </span>
+          {unseenCount > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-ember/15 px-2 py-0.5 font-meta text-[11px] font-semibold text-ember">
+              {unseenCount} nouveau{unseenCount > 1 ? 'x' : ''}
+            </span>
+          ) : (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-meta text-[11px]',
+                isPrivate ? 'bg-ember/12 text-ember' : 'bg-primary/12 text-primary',
+              )}
+            >
+              {isPrivate ? (
+                <>
+                  <Lock className="size-3" /> privé
+                </>
+              ) : (
+                <>
+                  <Globe className="size-3" /> public
+                </>
+              )}
+            </span>
+          )}
+        </div>
+
+        <h3 className="mt-4 text-lg font-semibold leading-tight transition-colors group-hover:text-primary">
+          {collection.title}
+        </h3>
+        {collection.description && (
+          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+            {collection.description}
+          </p>
         )}
-        {collection.owner?.username && (
-          <span>@{collection.owner.username}</span>
-        )}
-        <span className="ml-auto">
-          maj.{' '}
-          {formatDistanceToNow(new Date(collection.updated_at), {
-            addSuffix: true,
-            locale: fr,
-          })}
-        </span>
-      </div>
-    </Link>
+
+        <div className="mt-auto flex items-center gap-2 pt-4 font-meta text-xs text-muted-foreground">
+          {collection.subject?.code && (
+            <span className="rounded bg-secondary px-1.5 py-0.5 text-secondary-foreground">
+              {collection.subject.code}
+            </span>
+          )}
+          {collection.owner?.username && (
+            <span className="truncate">@{collection.owner.username}</span>
+          )}
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1">
+            <Clock className="size-3" />
+            {formatDistanceToNow(new Date(collection.updated_at), {
+              addSuffix: false,
+              locale: fr,
+            })}
+          </span>
+        </div>
+      </Link>
+    </RevealItem>
   )
 }
 
 function EmptyState() {
   return (
     <div className="mt-10 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 px-6 py-16 text-center">
-      <span className="inline-flex size-12 items-center justify-center rounded-xl bg-primary/12 text-primary">
+      <span className="inline-flex size-12 items-center justify-center rounded-xl bg-linear-to-br from-primary/20 to-ember/15 text-primary">
         <BookMarked className="size-6" />
       </span>
       <h2 className="mt-4 text-lg font-semibold">Ton premier cours t’attend</h2>

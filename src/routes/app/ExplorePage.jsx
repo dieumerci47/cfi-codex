@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   FileText,
@@ -10,41 +10,81 @@ import {
   Star,
   StickyNote,
   Users,
+  X,
 } from 'lucide-react'
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
 
+import { cn } from '@/lib/utils'
 import { useDiscoverProfiles } from '@/lib/queries/social'
 import {
   useSearchCourses,
   usePopularCollections,
 } from '@/lib/queries/collections'
+import { RevealItem, prefersReducedMotion } from '@/components/motion'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { VerifiedBadge } from '@/components/social/VerifiedBadge'
 import { FollowButton } from '@/components/social/FollowButton'
-import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { UserListSkeleton } from '@/components/skeletons'
 
 export default function ExplorePage() {
   const [search, setSearch] = useState('')
+  const scope = useRef(null)
+  const inputRef = useRef(null)
+
+  useGSAP(
+    () => {
+      if (prefersReducedMotion()) return
+      gsap.from('[data-rise]', {
+        y: 14,
+        opacity: 0,
+        duration: 0.5,
+        stagger: 0.08,
+        ease: 'power3.out',
+      })
+    },
+    { scope },
+  )
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
-      <h1 className="text-2xl font-semibold">Explorer</h1>
-      <p className="font-meta text-xs text-muted-foreground">
-        trouve ta promo et fouille les cours
-      </p>
+    <div ref={scope} className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+      <div data-rise>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">
+          Explorer
+        </h1>
+        <p className="mt-0.5 font-meta text-xs text-muted-foreground">
+          trouve ta promo et fouille les cours
+        </p>
+      </div>
 
-      <div className="relative mt-4">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
+      {/* Recherche — élément central */}
+      <div data-rise className="group relative mt-5">
+        <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary" />
+        <input
+          ref={inputRef}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Rechercher une personne ou un cours…"
-          className="pl-9"
+          aria-label="Rechercher"
+          className="h-12 w-full rounded-2xl border border-border bg-card/60 pl-11 pr-10 text-[15px] outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground focus:border-primary/50 focus:shadow-[0_0_0_4px] focus:shadow-primary/10"
         />
+        {search && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('')
+              inputRef.current?.focus()
+            }}
+            aria-label="Effacer"
+            className="absolute right-3 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-90"
+          >
+            <X className="size-4" />
+          </button>
+        )}
       </div>
 
-      <Tabs defaultValue="people" className="mt-5">
+      <Tabs data-rise defaultValue="people" className="mt-5">
         <TabsList>
           <TabsTrigger value="people">Personnes</TabsTrigger>
           <TabsTrigger value="courses">Cours</TabsTrigger>
@@ -81,26 +121,33 @@ function PeopleResults({ search }) {
   }
 
   return (
-    <ul className="mt-2 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card/40">
-      {profiles.map((p) => (
-        <li key={p.id} className="flex items-center gap-3 px-4 py-3">
-          <Link to={`/app/u/${p.username}`}>
-            <UserAvatar profile={p} className="size-11" />
-          </Link>
-          <Link to={`/app/u/${p.username}`} className="min-w-0 flex-1">
-            <p className="flex items-center gap-1 truncate font-medium hover:text-primary">
-              {p.full_name || `@${p.username}`}
-              <VerifiedBadge verified={p.is_verified} />
-            </p>
-            <p className="truncate font-meta text-xs text-muted-foreground">
-              @{p.username}
-              {p.promo && ` · ${p.promo}`}
-            </p>
-          </Link>
-          <FollowButton targetId={p.id} />
-        </li>
+    <div className="mt-3 space-y-2.5">
+      {profiles.map((p, i) => (
+        <RevealItem key={p.id} delay={Math.min(i, 8) * 0.04}>
+          <div className="group flex items-center gap-3 rounded-xl border border-border bg-card/60 p-3.5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20">
+            <Link to={`/app/u/${p.username}`} className="shrink-0">
+              <UserAvatar profile={p} className="size-12" />
+            </Link>
+            <Link to={`/app/u/${p.username}`} className="min-w-0 flex-1">
+              <p className="flex items-center gap-1 truncate font-medium group-hover:text-primary">
+                {p.full_name || `@${p.username}`}
+                <VerifiedBadge verified={p.is_verified} />
+              </p>
+              <p className="truncate font-meta text-xs text-muted-foreground">
+                @{p.username}
+                {p.promo && ` · ${p.promo}`}
+              </p>
+              {p.bio && (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground/80">
+                  {p.bio}
+                </p>
+              )}
+            </Link>
+            <FollowButton targetId={p.id} />
+          </div>
+        </RevealItem>
       ))}
-    </ul>
+    </div>
   )
 }
 
@@ -125,21 +172,24 @@ function PopularCourses() {
   }
   return (
     <>
-      <p className="mt-3 font-meta text-xs uppercase tracking-wide text-muted-foreground">
+      <p className="mt-4 flex items-center gap-1.5 font-meta text-xs uppercase tracking-wide text-muted-foreground">
+        <Star className="size-3.5 fill-ember text-ember" />
         Cours populaires
       </p>
-      <ul className="mt-2 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card/40">
-        {collections.map((c) => (
-          <li key={c.id}>
+      <div className="mt-2 space-y-2.5">
+        {collections.map((c, i) => (
+          <RevealItem key={c.id} delay={Math.min(i, 8) * 0.04}>
             <Link
               to={`/app/collections/${c.id}`}
-              className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/60"
+              className="group flex items-center gap-3 rounded-xl border border-border bg-card/60 p-3.5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20"
             >
-              <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
+              <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-primary/20 to-ember/15 text-primary transition-transform duration-200 group-hover:scale-105">
                 <FolderTree className="size-5" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{c.title}</p>
+                <p className="truncate font-medium group-hover:text-primary">
+                  {c.title}
+                </p>
                 <p className="truncate font-meta text-xs text-muted-foreground">
                   {c.visibility === 'private' ? (
                     <Lock className="inline size-3" />
@@ -150,14 +200,14 @@ function PopularCourses() {
                   {c.owner?.username && ` · @${c.owner.username}`}
                 </p>
               </div>
-              <span className="inline-flex shrink-0 items-center gap-1 font-meta text-sm text-muted-foreground">
-                <Star className="size-4" />
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-ember/10 px-2 py-1 font-meta text-sm text-ember">
+                <Star className="size-4 fill-ember" />
                 {c.star_count}
               </span>
             </Link>
-          </li>
+          </RevealItem>
         ))}
-      </ul>
+      </div>
     </>
   )
 }
@@ -178,16 +228,23 @@ function CourseSearchResults({ q }) {
   }
 
   return (
-    <ul className="mt-2 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card/40">
-      {results.map((r) => (
-        <li key={`${r.result_kind}-${r.resource_id ?? r.collection_id}`}>
+    <div className="mt-3 space-y-2.5">
+      {results.map((r, i) => (
+        <RevealItem
+          key={`${r.result_kind}-${r.resource_id ?? r.collection_id}`}
+          delay={Math.min(i, 8) * 0.04}
+        >
           <button
             onClick={() => navigate(`/app/collections/${r.collection_id}`)}
-            className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/60"
+            className="group flex w-full items-center gap-3 rounded-xl border border-border bg-card/60 p-3.5 text-left transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20"
           >
-            <ResultIcon kind={r.result_kind} />
+            <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary/60">
+              <ResultIcon kind={r.result_kind} />
+            </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{r.name}</p>
+              <p className="truncate font-medium group-hover:text-primary">
+                {r.name}
+              </p>
               <p className="truncate font-meta text-xs text-muted-foreground">
                 {r.result_kind === 'collection'
                   ? 'cours'
@@ -196,9 +253,9 @@ function CourseSearchResults({ q }) {
               </p>
             </div>
           </button>
-        </li>
+        </RevealItem>
       ))}
-    </ul>
+    </div>
   )
 }
 
@@ -213,7 +270,7 @@ function ResultIcon({ kind }) {
 function EmptyState({ icon, title, text }) {
   return (
     <div className="mt-4 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 px-6 py-16 text-center">
-      <span className="inline-flex size-12 items-center justify-center rounded-xl bg-primary/12 text-primary">
+      <span className="inline-flex size-12 items-center justify-center rounded-xl bg-linear-to-br from-primary/20 to-ember/15 text-primary">
         {icon}
       </span>
       <h2 className="mt-4 text-lg font-semibold">{title}</h2>

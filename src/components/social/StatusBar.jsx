@@ -75,7 +75,10 @@ export function StatusBar() {
 
 function StatusTile({ group, onClick }) {
   return (
-    <button onClick={onClick} className="flex w-16 shrink-0 flex-col items-center gap-1">
+    <button
+      onClick={onClick}
+      className="flex w-16 shrink-0 flex-col items-center gap-1 transition-transform active:scale-95"
+    >
       <span
         className={cn(
           'rounded-full p-0.5',
@@ -290,7 +293,7 @@ function AddStatusDialog({ trigger }) {
   )
 }
 
-function StatusViewer({ groups, startIndex, onClose }) {
+export function StatusViewer({ groups, startIndex, onClose }) {
   const { user } = useAuth()
   const [gi, setGi] = useState(startIndex)
   const [si, setSi] = useState(0)

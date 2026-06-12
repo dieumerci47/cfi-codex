@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { FolderTree, ImagePlus, Loader2, Send, X } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { cn } from '@/lib/utils'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useCreatePost } from '@/lib/queries/social'
 import { useCollections } from '@/lib/queries/collections'
@@ -20,6 +21,7 @@ export function PostComposer() {
   const [body, setBody] = useState('')
   const [files, setFiles] = useState([])
   const [collectionId, setCollectionId] = useState('')
+  const [focused, setFocused] = useState(false)
 
   const canPost = body.trim() || files.length > 0 || collectionId
 
@@ -40,6 +42,7 @@ export function PostComposer() {
       setBody('')
       setFiles([])
       setCollectionId('')
+      setFocused(false)
       toast.success('Publié ✦')
     } catch (err) {
       toast.error(err.message ?? 'Échec de la publication.')
@@ -49,24 +52,33 @@ export function PostComposer() {
   return (
     <form
       onSubmit={submit}
-      className="rounded-xl border border-border bg-card/60 p-4"
+      className="overflow-hidden rounded-2xl border border-border bg-card/60 transition-colors focus-within:border-primary/40 focus-within:bg-card/80"
     >
-      <div className="flex gap-3">
-        <UserAvatar profile={profile} />
+      <div className="flex gap-3 p-4">
+        <UserAvatar profile={profile} className="size-10 shrink-0" />
         <Textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          rows={2}
-          placeholder="Quoi de neuf sur le campus ?"
-          className="min-h-0 flex-1 resize-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          rows={focused || body ? 3 : 1}
+          placeholder={
+            profile?.username
+              ? `Quoi de neuf, @${profile.username} ?`
+              : 'Quoi de neuf sur le campus ?'
+          }
+          className="min-h-0 flex-1 resize-none border-0 bg-transparent px-0 pt-2 text-[15px] leading-relaxed shadow-none transition-all placeholder:text-muted-foreground focus-visible:ring-0"
         />
       </div>
 
-      {/* Aperçu images */}
+      {/* Aperçu des images */}
       {files.length > 0 && (
-        <div className="mt-3 grid grid-cols-4 gap-2 pl-12">
+        <div className="grid grid-cols-4 gap-2 px-4 pb-2">
           {files.map((f, i) => (
-            <div key={i} className="relative aspect-square overflow-hidden rounded-lg border border-border">
+            <div
+              key={i}
+              className="group relative aspect-square overflow-hidden rounded-xl border border-border"
+            >
               <img
                 src={URL.createObjectURL(f)}
                 alt=""
@@ -75,7 +87,7 @@ export function PostComposer() {
               <button
                 type="button"
                 onClick={() => removeFile(i)}
-                className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5 backdrop-blur"
+                className="absolute right-1.5 top-1.5 rounded-full bg-background/80 p-1 text-foreground backdrop-blur transition-transform active:scale-90"
                 aria-label="Retirer"
               >
                 <X className="size-3.5" />
@@ -85,16 +97,21 @@ export function PostComposer() {
         </div>
       )}
 
-      <div className="mt-3 flex items-center gap-2 pl-12">
-        <Button
+      {/* Barre d'actions */}
+      <div className="flex items-center gap-2 border-t border-border/60 bg-background/30 px-3 py-2.5">
+        <button
           type="button"
-          variant="ghost"
-          size="icon"
           onClick={() => fileInput.current?.click()}
+          className="relative inline-flex size-9 items-center justify-center rounded-lg text-primary transition-colors hover:bg-primary/10 active:scale-95"
           aria-label="Ajouter des photos"
         >
-          <ImagePlus className="size-5 text-primary" />
-        </Button>
+          <ImagePlus className="size-5" />
+          {files.length > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-primary font-meta text-[10px] font-semibold text-primary-foreground">
+              {files.length}
+            </span>
+          )}
+        </button>
         <input
           ref={fileInput}
           type="file"
@@ -104,13 +121,18 @@ export function PostComposer() {
           onChange={addFiles}
         />
 
-        {/* Partage de collection */}
+        {/* Partage d'un cours */}
         <div className="relative flex items-center">
-          <FolderTree className="pointer-events-none absolute left-2 size-4 text-muted-foreground" />
+          <FolderTree className="pointer-events-none absolute left-2.5 size-4 text-muted-foreground" />
           <select
             value={collectionId}
             onChange={(e) => setCollectionId(e.target.value)}
-            className="h-9 rounded-md border border-input bg-transparent pl-8 pr-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(
+              'h-9 max-w-44 truncate rounded-full border bg-secondary/60 pl-8 pr-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+              collectionId
+                ? 'border-primary/40 text-foreground'
+                : 'border-border text-muted-foreground',
+            )}
           >
             <option value="">Partager un cours…</option>
             {collections?.map((c) => (
@@ -123,7 +145,8 @@ export function PostComposer() {
 
         <Button
           type="submit"
-          className="ml-auto"
+          size="sm"
+          className={cn('ml-auto', canPost && 'glow-primary')}
           disabled={!canPost || create.isPending}
         >
           {create.isPending ? (

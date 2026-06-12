@@ -1,6 +1,14 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Bell, Heart, MessageCircle, UserPlus, FolderTree } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  Bell,
+  Heart,
+  MessageCircle,
+  UserPlus,
+  FolderTree,
+  FilePlus2,
+  CheckCheck,
+} from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -9,8 +17,10 @@ import {
   useNotifications,
   useUnreadNotifCount,
   useMarkNotifsRead,
+  useMarkNotifRead,
 } from '@/lib/queries/notifications'
 import { UserAvatar } from '@/components/social/UserAvatar'
+import { VerifiedBadge } from '@/components/social/VerifiedBadge'
 import {
   Popover,
   PopoverContent,
@@ -20,36 +30,67 @@ import {
 const META = {
   follow: { icon: UserPlus, color: 'text-primary', text: 'a commencé à te suivre' },
   like: { icon: Heart, color: 'text-ember', text: 'a aimé ta publication' },
-  comment: { icon: MessageCircle, color: 'text-primary', text: 'a commenté ta publication' },
+  comment: {
+    icon: MessageCircle,
+    color: 'text-primary',
+    text: 'a commenté ta publication',
+  },
   collection_invite: {
     icon: FolderTree,
     color: 'text-primary',
-    text: 't’a ajouté comme éditeur',
+    text: 't’a ajouté comme éditeur de',
   },
+  collection_change: {
+    icon: FilePlus2,
+    color: 'text-ember',
+    text: 'a modifié',
+  },
+}
+
+/** Destination du clic sur le corps d'une notification (le contenu concerné). */
+function destOf(n) {
+  switch (n.type) {
+    case 'follow':
+      return n.actor?.username ? `/app/u/${n.actor.username}` : '/app/explore'
+    case 'like':
+      return n.post_id ? `/app?post=${n.post_id}` : '/app'
+    case 'comment':
+      return n.post_id
+        ? `/app?post=${n.post_id}${n.comment_id ? `&c=${n.comment_id}` : ''}`
+        : '/app'
+    case 'collection_invite':
+      return n.collection ? `/app/collections/${n.collection.id}` : '/app/collections'
+    case 'collection_change':
+      return n.collection
+        ? `/app/collections/${n.collection.id}${
+            n.resource_id ? `?focus=${n.resource_id}` : ''
+          }`
+        : '/app/collections'
+    default:
+      return '/app'
+  }
 }
 
 export function NotificationsBell() {
   const [open, setOpen] = useState(false)
   const { data: notifications } = useNotifications()
   const unread = useUnreadNotifCount()
-  const markRead = useMarkNotifsRead()
+  const markAll = useMarkNotifsRead()
+  const markOne = useMarkNotifRead()
   const navigate = useNavigate()
 
-  const onOpenChange = (o) => {
-    setOpen(o)
-    if (o && unread > 0) markRead.mutate()
+  const readOne = (n) => {
+    if (!n.read) markOne.mutate(n.id)
   }
 
   const go = (n) => {
     setOpen(false)
-    if (n.type === 'follow') navigate(`/app/u/${n.actor?.username}`)
-    else if (n.type === 'collection_invite' && n.collection)
-      navigate(`/app/collections/${n.collection.id}`)
-    else navigate('/app/me')
+    readOne(n)
+    navigate(destOf(n))
   }
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className={cn(
           'relative inline-flex size-9 items-center justify-center rounded-md transition-colors',
@@ -64,65 +105,132 @@ export function NotificationsBell() {
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
-        <div className="border-b border-border px-4 py-2.5">
-          <h3 className="font-semibold">Notifications</h3>
+      <PopoverContent align="end" className="w-88 overflow-hidden p-0">
+        <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+          <h3 className="font-semibold">
+            Notifications
+            {unread > 0 && (
+              <span className="ml-1.5 font-meta text-xs font-normal text-muted-foreground">
+                {unread} non lue{unread > 1 ? 's' : ''}
+              </span>
+            )}
+          </h3>
+          {unread > 0 && (
+            <button
+              onClick={() => markAll.mutate()}
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-meta text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <CheckCheck className="size-3.5" /> Tout marquer lu
+            </button>
+          )}
         </div>
-        <div className="max-h-96 overflow-auto">
+
+        <div className="max-h-104 overflow-auto">
           {notifications?.length ? (
-            notifications.map((n) => {
-              const meta = META[n.type] ?? META.follow
-              const Icon = meta.icon
-              return (
-                <button
-                  key={n.id}
-                  onClick={() => go(n)}
-                  className={cn(
-                    'flex w-full items-start gap-3 border-b border-border/60 px-4 py-3 text-left transition-colors hover:bg-accent/60',
-                    !n.read && 'bg-primary/5',
-                  )}
-                >
-                  <div className="relative">
-                    <UserAvatar profile={n.actor} className="size-9" />
-                    <span
-                      className={cn(
-                        'absolute -bottom-1 -right-1 inline-flex size-4 items-center justify-center rounded-full bg-card',
-                        meta.color,
-                      )}
-                    >
-                      <Icon className="size-3" />
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm leading-snug">
-                      <span className="font-medium">
-                        {n.actor?.full_name || `@${n.actor?.username}`}
-                      </span>{' '}
-                      {meta.text}
-                      {n.type === 'collection_invite' && n.collection && (
-                        <span className="font-medium"> « {n.collection.title} »</span>
-                      )}
-                    </p>
-                    <p className="font-meta text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(n.created_at), {
-                        addSuffix: true,
-                        locale: fr,
-                      })}
-                    </p>
-                  </div>
-                  {!n.read && (
-                    <span className="mt-1 size-2 shrink-0 rounded-full bg-ember" />
-                  )}
-                </button>
-              )
-            })
+            notifications.map((n) => (
+              <NotificationRow
+                key={n.id}
+                n={n}
+                onGo={() => go(n)}
+                onReadProfile={() => {
+                  readOne(n)
+                  setOpen(false)
+                }}
+              />
+            ))
           ) : (
-            <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-              Pas encore de notifications.
-            </p>
+            <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+              <span className="inline-flex size-11 items-center justify-center rounded-full bg-secondary/60 text-muted-foreground">
+                <Bell className="size-5" />
+              </span>
+              <p className="text-sm text-muted-foreground">
+                Pas encore de notifications.
+              </p>
+            </div>
           )}
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+function NotificationRow({ n, onGo, onReadProfile }) {
+  const meta = META[n.type] ?? META.follow
+  const Icon = meta.icon
+  const name = n.actor?.full_name || `@${n.actor?.username}`
+  const profileHref = n.actor?.username ? `/app/u/${n.actor.username}` : null
+
+  return (
+    <div
+      className={cn(
+        'relative flex items-start gap-3 border-b border-border/60 px-4 py-3 transition-colors hover:bg-accent/50',
+        !n.read && 'bg-primary/5',
+      )}
+    >
+      {/* liseré non-lu */}
+      {!n.read && (
+        <span className="absolute inset-y-0 left-0 w-0.5 bg-ember" />
+      )}
+
+      {/* avatar -> profil */}
+      {profileHref ? (
+        <Link to={profileHref} onClick={onReadProfile} className="relative shrink-0">
+          <UserAvatar profile={n.actor} className="size-9" />
+          <span
+            className={cn(
+              'absolute -bottom-1 -right-1 inline-flex size-4 items-center justify-center rounded-full bg-card ring-1 ring-background',
+              meta.color,
+            )}
+          >
+            <Icon className="size-3" />
+          </span>
+        </Link>
+      ) : (
+        <div className="relative shrink-0">
+          <UserAvatar profile={n.actor} className="size-9" />
+        </div>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <p className="text-sm leading-snug">
+          {profileHref ? (
+            <Link
+              to={profileHref}
+              onClick={onReadProfile}
+              className="inline-flex items-center gap-1 font-medium hover:text-primary"
+            >
+              {name}
+              <VerifiedBadge verified={n.actor?.is_verified} className="size-3" />
+            </Link>
+          ) : (
+            <span className="font-medium">{name}</span>
+          )}{' '}
+          <button onClick={onGo} className="text-left hover:underline">
+            {meta.text}
+            {n.type === 'collection_change' && n.resource?.name && (
+              <span className="font-medium"> {n.resource.name}</span>
+            )}
+            {(n.type === 'collection_invite' || n.type === 'collection_change') &&
+              n.collection && (
+                <span>
+                  {' '}
+                  dans <span className="font-medium">« {n.collection.title} »</span>
+                </span>
+              )}
+          </button>
+        </p>
+        <button
+          onClick={onGo}
+          className="mt-0.5 block font-meta text-xs text-muted-foreground hover:text-foreground"
+        >
+          {formatDistanceToNow(new Date(n.created_at), {
+            addSuffix: true,
+            locale: fr,
+          })}
+        </button>
+      </div>
+
+      {!n.read && <span className="mt-1.5 size-2 shrink-0 rounded-full bg-ember" />}
+    </div>
   )
 }

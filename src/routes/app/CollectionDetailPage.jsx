@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
+  Check,
   ChevronRight,
   Folder,
   FolderPlus,
@@ -24,6 +25,7 @@ import {
   UserPlus,
   Shield,
   Star,
+  Sparkles,
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -46,6 +48,8 @@ import {
   useToggleCollectionFollow,
   useToggleStar,
   useSubjects,
+  useResourceSeen,
+  useMarkResourcesSeen,
 } from '@/lib/queries/collections'
 import { ResourceViewer } from '@/components/ResourceViewer'
 import { CollectionDetailSkeleton } from '@/components/skeletons'
@@ -75,11 +79,25 @@ export default function CollectionDetailPage() {
   const { data: collection, isLoading } = useCollection(id)
   const { data: resources } = useResources(id)
   const { data: membership } = useMyMembership(id)
+  const { data: seenMap } = useResourceSeen(id)
+  const markSeen = useMarkResourcesSeen(id)
+  const [params, setParams] = useSearchParams()
+  const focusId = params.get('focus')
 
   const [folderId, setFolderId] = useState(null) // dossier courant (null = racine)
   const [viewing, setViewing] = useState(null)
   const [renaming, setRenaming] = useState(null) // ressource en cours de renommage
   const [isDragging, setIsDragging] = useState(false)
+  const [flash, setFlash] = useState(null) // ressource surlignée (depuis une notif)
+
+  // Édition en ligne de l'en-tête (titre, description, matière, portée)
+  const [editingMeta, setEditingMeta] = useState(false)
+  const [metaTitle, setMetaTitle] = useState('')
+  const [metaDesc, setMetaDesc] = useState('')
+  const [metaSubject, setMetaSubject] = useState('')
+  const [metaVisibility, setMetaVisibility] = useState('public')
+  const updateCollection = useUpdateCollection()
+  const { data: subjects } = useSubjects()
 
   const upload = useUploadFiles(id)
   const uploadFolder = useUploadFolder(id)
@@ -102,6 +120,84 @@ export default function CollectionDetailPage() {
     () => buildBreadcrumb(resources ?? [], folderId),
     [resources, folderId],
   )
+
+  // ── Modifications non consultées ────────────────────────────────────────
+  const byId = useMemo(() => {
+    const m = new Map()
+    for (const r of resources ?? []) m.set(r.id, r)
+    return m
+  }, [resources])
+
+  // Seuil : depuis que j'ai rejoint (membre) ou depuis la création (owner).
+  const threshold = membership?.created_at ?? collection?.created_at
+
+  // Ressources changées depuis le seuil que je n'ai pas encore vues.
+  const unseenIds = useMemo(() => {
+    const set = new Set()
+    if (!resources || !threshold) return set
+    const t = new Date(threshold).getTime()
+    for (const r of resources) {
+      if (new Date(r.updated_at).getTime() <= t) continue
+      const s = seenMap?.get(r.id)
+      if (!s || new Date(s).getTime() < new Date(r.updated_at).getTime())
+        set.add(r.id)
+    }
+    return set
+  }, [resources, seenMap, threshold])
+
+  // Dossiers qui contiennent (à n'importe quelle profondeur) une nouveauté.
+  const folderHasUnseen = useMemo(() => {
+    const set = new Set()
+    for (const rid of unseenIds) {
+      let pid = byId.get(rid)?.parent_id
+      while (pid) {
+        set.add(pid)
+        pid = byId.get(pid)?.parent_id
+      }
+    }
+    return set
+  }, [unseenIds, byId])
+
+  // En ouvrant un dossier, ses éléments deviennent visibles → marqués vus.
+  const markedRef = useRef(new Set())
+  useEffect(() => {
+    if (!resources) return
+    const toMark = resources
+      .filter(
+        (r) =>
+          unseenIds.has(r.id) &&
+          (r.parent_id ?? null) === folderId &&
+          !markedRef.current.has(r.id),
+      )
+      .map((r) => r.id)
+    if (toMark.length) {
+      toMark.forEach((x) => markedRef.current.add(x))
+      markSeen.mutate(toMark)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folderId, unseenIds, resources])
+
+  // Lien profond depuis une notif (?focus=resourceId) : on ouvre le bon dossier.
+  const focusedRef = useRef(false)
+  useEffect(() => {
+    if (!focusId || !resources || focusedRef.current) return
+    const r = byId.get(focusId)
+    if (!r) return
+    focusedRef.current = true
+    setFolderId(r.parent_id ?? null)
+    setFlash(focusId)
+    const next = new URLSearchParams(params)
+    next.delete('focus')
+    setParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, resources, byId])
+
+  // Retire le surlignage après un court instant.
+  useEffect(() => {
+    if (!flash) return
+    const t = setTimeout(() => setFlash(null), 2600)
+    return () => clearTimeout(t)
+  }, [flash])
 
   if (isLoading) {
     return <CollectionDetailSkeleton />
@@ -211,6 +307,34 @@ export default function CollectionDetailPage() {
     else setViewing(item)
   }
 
+  const startEditMeta = () => {
+    setMetaTitle(collection.title)
+    setMetaDesc(collection.description ?? '')
+    setMetaSubject(collection.subject_id ?? '')
+    setMetaVisibility(collection.visibility)
+    setEditingMeta(true)
+  }
+
+  const saveMeta = async () => {
+    if (!metaTitle.trim()) {
+      toast.error('Le titre est requis.')
+      return
+    }
+    try {
+      await updateCollection.mutateAsync({
+        id: collection.id,
+        title: metaTitle.trim(),
+        description: metaDesc.trim() || null,
+        subject_id: metaSubject || null,
+        visibility: metaVisibility,
+      })
+      toast.success('Collection mise à jour ✦')
+      setEditingMeta(false)
+    } catch (err) {
+      toast.error(err.message ?? 'Erreur.')
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
       <Button asChild variant="ghost" size="sm" className="-ml-2">
@@ -219,52 +343,131 @@ export default function CollectionDetailPage() {
         </Link>
       </Button>
 
-      {/* En-tête collection */}
+      {/* En-tête collection — bascule en champs éditables en place */}
       <div className="mt-3 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold">{collection.title}</h1>
-            <RoleBadge role={role} />
-          </div>
-          {collection.description && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              {collection.description}
-            </p>
-          )}
-          <div className="mt-2 flex flex-wrap items-center gap-2 font-meta text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              {collection.visibility === 'private' ? (
-                <>
-                  <Lock className="size-3.5" /> privé
-                </>
-              ) : (
-                <>
-                  <Globe className="size-3.5" /> public
-                </>
+        <div className="min-w-0 flex-1">
+          {editingMeta ? (
+            <div className="space-y-3">
+              <input
+                value={metaTitle}
+                onChange={(e) => setMetaTitle(e.target.value)}
+                maxLength={80}
+                placeholder="Titre de la collection"
+                aria-label="Titre de la collection"
+                className="w-full rounded-none border-0 border-b border-border bg-transparent pb-1 text-2xl font-semibold outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary"
+              />
+              <Textarea
+                value={metaDesc}
+                onChange={(e) => setMetaDesc(e.target.value)}
+                rows={2}
+                maxLength={280}
+                placeholder="Description (optionnel)"
+                aria-label="Description"
+              />
+              <div className="grid max-w-md grid-cols-2 gap-3">
+                <select
+                  value={metaSubject}
+                  onChange={(e) => setMetaSubject(e.target.value)}
+                  aria-label="Matière"
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">Matière —</option>
+                  {subjects?.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={metaVisibility}
+                  onChange={(e) => setMetaVisibility(e.target.value)}
+                  aria-label="Portée"
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="public">Public (toute l’école)</option>
+                  <option value="private">Privé (membres uniquement)</option>
+                </select>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-semibold">{collection.title}</h1>
+                <RoleBadge role={role} />
+              </div>
+              {collection.description && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {collection.description}
+                </p>
               )}
-            </span>
-            {collection.subject?.code && (
-              <span className="rounded bg-secondary px-1.5 py-0.5 text-secondary-foreground">
-                {collection.subject.code}
-              </span>
-            )}
-            {collection.owner?.username && (
-              <span>· @{collection.owner.username}</span>
-            )}
-          </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 font-meta text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  {collection.visibility === 'private' ? (
+                    <>
+                      <Lock className="size-3.5" /> privé
+                    </>
+                  ) : (
+                    <>
+                      <Globe className="size-3.5" /> public
+                    </>
+                  )}
+                </span>
+                {collection.subject?.code && (
+                  <span className="rounded bg-secondary px-1.5 py-0.5 text-secondary-foreground">
+                    {collection.subject.code}
+                  </span>
+                )}
+                {collection.owner?.username && (
+                  <span>· @{collection.owner.username}</span>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Actions selon le rôle */}
         <div className="flex shrink-0 items-center gap-2">
-          <StarButton collection={collection} />
-          {isOwner && <EditCollectionDialog collection={collection} />}
-          <MembersDialog collection={collection} isOwner={isOwner} />
-          {!isOwner && (
-            <FollowCollectionButton
-              collectionId={id}
-              isFollowing={role === 'follower'}
-              canEdit={canEdit}
-            />
+          {editingMeta ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEditingMeta(false)}
+                disabled={updateCollection.isPending}
+              >
+                Annuler
+              </Button>
+              <Button
+                size="sm"
+                onClick={saveMeta}
+                disabled={updateCollection.isPending || !metaTitle.trim()}
+              >
+                {updateCollection.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <>
+                    <Check className="size-4" /> Enregistrer
+                  </>
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <StarButton collection={collection} />
+              {isOwner && (
+                <Button size="sm" variant="outline" onClick={startEditMeta}>
+                  <Settings2 className="size-4" /> Modifier
+                </Button>
+              )}
+              <MembersDialog collection={collection} isOwner={isOwner} />
+              {!isOwner && (
+                <FollowCollectionButton
+                  collectionId={id}
+                  isFollowing={role === 'follower'}
+                  canEdit={canEdit}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
@@ -334,6 +537,16 @@ export default function CollectionDetailPage() {
         ))}
       </div>
 
+      {/* Bandeau des nouveautés non consultées */}
+      {unseenIds.size > 0 && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-ember/30 bg-ember/10 px-3 py-2 font-meta text-xs text-ember">
+          <Sparkles className="size-3.5 shrink-0" />
+          {unseenIds.size} modification{unseenIds.size > 1 ? 's' : ''} non
+          consultée{unseenIds.size > 1 ? 's' : ''} — les dossiers concernés sont
+          marqués, ouvre-les pour voir ce qui a changé.
+        </div>
+      )}
+
       {/* Contenu du dossier courant — zone de glisser-déposer */}
       <div
         onDragEnter={onDragEnter}
@@ -375,54 +588,83 @@ export default function CollectionDetailPage() {
               )}
             </li>
           )}
-          {currentItems.map((item) => (
+          {currentItems.map((item) => {
+            const isNew = unseenIds.has(item.id)
+            const hasInside =
+              item.kind === 'folder' && folderHasUnseen.has(item.id)
+            return (
             <li
               key={item.id}
-              className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent/60"
+              className={cn(
+                'group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-accent/60',
+                flash === item.id && 'bg-ember/10 ring-1 ring-inset ring-ember/40',
+              )}
             >
-              <button
-                onClick={() => openItem(item)}
-                className="flex flex-1 items-center gap-3 overflow-hidden text-left"
-              >
-                <ResourceIcon item={item} />
-                <span className="truncate font-meta text-sm">{item.name}</span>
-                {item.kind === 'file' && item.size_bytes != null && (
-                  <span className="shrink-0 font-meta text-xs text-muted-foreground">
-                    {formatSize(item.size_bytes)}
-                  </span>
-                )}
-              </button>
-              {canEdit && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100 data-[state=open]:opacity-100"
-                    aria-label={`Actions sur ${item.name}`}
+              {renaming?.id === item.id ? (
+                <ResourceRenameRow
+                  item={item}
+                  collectionId={id}
+                  onDone={() => setRenaming(null)}
+                />
+              ) : (
+                <>
+                  <button
+                    onClick={() => openItem(item)}
+                    className="flex flex-1 items-center gap-3 overflow-hidden text-left"
                   >
-                    <MoreVertical className="size-4" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setRenaming(item)}>
-                      <Pencil className="size-4" /> Renommer
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onClick={() => onDelete(item)}
+                    <span className="relative shrink-0">
+                      <ResourceIcon item={item} />
+                      {(isNew || hasInside) && (
+                        <span className="absolute -right-1 -top-1 size-2 rounded-full bg-ember ring-2 ring-card" />
+                      )}
+                    </span>
+                    <span
+                      className={cn(
+                        'truncate font-meta text-sm',
+                        (isNew || hasInside) && 'font-medium text-foreground',
+                      )}
                     >
-                      <Trash2 className="size-4" /> Supprimer
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      {item.name}
+                    </span>
+                    {isNew && (
+                      <span className="shrink-0 rounded-full bg-ember/15 px-1.5 py-0.5 font-meta text-[10px] font-semibold text-ember">
+                        nouveau
+                      </span>
+                    )}
+                    {item.kind === 'file' && item.size_bytes != null && (
+                      <span className="shrink-0 font-meta text-xs text-muted-foreground">
+                        {formatSize(item.size_bytes)}
+                      </span>
+                    )}
+                  </button>
+                  {canEdit && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100 data-[state=open]:opacity-100"
+                        aria-label={`Actions sur ${item.name}`}
+                      >
+                        <MoreVertical className="size-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setRenaming(item)}>
+                          <Pencil className="size-4" /> Renommer
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => onDelete(item)}
+                        >
+                          <Trash2 className="size-4" /> Supprimer
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </>
               )}
             </li>
-          ))}
+            )
+          })}
         </ul>
       </div>
-
-      <RenameDialog
-        collectionId={id}
-        resource={renaming}
-        onClose={() => setRenaming(null)}
-      />
 
       <ResourceViewer
         resource={viewing}
@@ -500,111 +742,6 @@ function FollowCollectionButton({ collectionId, isFollowing, canEdit }) {
         </>
       )}
     </Button>
-  )
-}
-
-function EditCollectionDialog({ collection }) {
-  const [open, setOpen] = useState(false)
-  const { data: subjects } = useSubjects()
-  const update = useUpdateCollection()
-
-  const [title, setTitle] = useState(collection.title)
-  const [description, setDescription] = useState(collection.description ?? '')
-  const [subjectId, setSubjectId] = useState(collection.subject_id ?? '')
-  const [visibility, setVisibility] = useState(collection.visibility)
-
-  const submit = async (e) => {
-    e.preventDefault()
-    if (!title.trim()) return
-    try {
-      await update.mutateAsync({
-        id: collection.id,
-        title: title.trim(),
-        description: description || null,
-        subject_id: subjectId || null,
-        visibility,
-      })
-      toast.success('Collection mise à jour ✦')
-      setOpen(false)
-    } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <Settings2 className="size-4" /> Modifier
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Modifier la collection</DialogTitle>
-          <DialogDescription>
-            Change le titre, la description, la matière ou la portée.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="ec-title">Titre</Label>
-            <Input
-              id="ec-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ec-desc">Description</Label>
-            <Textarea
-              id="ec-desc"
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="ec-subject">Matière</Label>
-              <select
-                id="ec-subject"
-                value={subjectId}
-                onChange={(e) => setSubjectId(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">—</option>
-                {subjects?.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="ec-visibility">Portée</Label>
-              <select
-                id="ec-visibility"
-                value={visibility}
-                onChange={(e) => setVisibility(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="public">Public (toute l’école)</option>
-                <option value="private">Privé (membres uniquement)</option>
-              </select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={update.isPending || !title.trim()}>
-              {update.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                'Enregistrer'
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -749,60 +886,70 @@ function MemberRow({ profile, label, icon, onRemove }) {
   )
 }
 
-function RenameDialog({ collectionId, resource, onClose }) {
+/**
+ * Renommage en ligne d'une ressource : la ligne devient un champ. Entrée ou
+ * perte de focus valide, Échap annule. Pas de popup.
+ */
+function ResourceRenameRow({ item, collectionId, onDone }) {
   const rename = useRenameResource(collectionId)
-  const [name, setName] = useState('')
+  const [name, setName] = useState(item.name)
+  const inputRef = useRef(null)
+  const committed = useRef(false)
 
-  // Pré-remplit à l'ouverture
-  const open = !!resource
-  const handleOpenChange = (o) => {
-    if (!o) onClose()
-  }
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.focus()
+    // Sélectionne le nom sans l'extension pour un renommage rapide
+    const dot = item.name.lastIndexOf('.')
+    if (item.kind === 'file' && dot > 0) el.setSelectionRange(0, dot)
+    else el.select()
+  }, [item])
 
-  const submit = async (e) => {
-    e.preventDefault()
+  const commit = async () => {
+    if (committed.current) return
     const trimmed = name.trim()
-    if (!trimmed || trimmed === resource.name) {
-      onClose()
+    if (!trimmed || trimmed === item.name) {
+      committed.current = true
+      onDone()
       return
     }
+    committed.current = true
     try {
-      await rename.mutateAsync({ id: resource.id, name: trimmed })
+      await rename.mutateAsync({ id: item.id, name: trimmed })
       toast.success('Renommé')
-      onClose()
     } catch (err) {
       toast.error(err.message ?? 'Erreur.')
     }
+    onDone()
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="max-w-sm"
-        onOpenAutoFocus={() => setName(resource?.name ?? '')}
-      >
-        <DialogHeader>
-          <DialogTitle>Renommer</DialogTitle>
-          <DialogDescription>Donne un nouveau nom à cet élément.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="space-y-4">
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button type="submit" disabled={rename.isPending || !name.trim()}>
-              {rename.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                'Renommer'
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <div className="flex flex-1 items-center gap-3">
+      <ResourceIcon item={item} />
+      <input
+        ref={inputRef}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            commit()
+          } else if (e.key === 'Escape') {
+            e.preventDefault()
+            committed.current = true
+            onDone()
+          }
+        }}
+        disabled={rename.isPending}
+        aria-label="Nouveau nom"
+        className="min-w-0 flex-1 rounded-md border border-primary/50 bg-background px-2 py-1 font-meta text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:opacity-60"
+      />
+      {rename.isPending && (
+        <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+      )}
+    </div>
   )
 }
 

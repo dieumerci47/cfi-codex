@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { pushMessageToast } from '@/components/social/pushToasts'
 
 /**
  * Mes conversations, enrichies : autre membre (DM), dernier message, non-lus.
@@ -15,7 +17,7 @@ export function useConversations() {
       const { data: convs, error } = await supabase
         .from('conversations')
         .select(
-          '*, members:conversation_members(user_id, last_read_at, user:profiles(id, username, full_name, avatar_url))',
+          '*, members:conversation_members(user_id, last_read_at, user:profiles(id, username, full_name, avatar_url, is_verified))',
         )
         .order('last_message_at', { ascending: false })
       if (error) throw error
@@ -77,7 +79,7 @@ export function useMessages(conversationId) {
       const { data, error } = await supabase
         .from('messages')
         .select(
-          '*, sender:profiles(id, username, full_name, avatar_url), ' +
+          '*, sender:profiles(id, username, full_name, avatar_url, is_verified), ' +
             'repliedStatus:statuses(id, caption, media_path)',
         )
         .eq('conversation_id', conversationId)
@@ -98,7 +100,7 @@ export function useConversation(conversationId) {
       const { data, error } = await supabase
         .from('conversations')
         .select(
-          '*, members:conversation_members(user_id, user:profiles(id, username, full_name, avatar_url))',
+          '*, members:conversation_members(user_id, user:profiles(id, username, full_name, avatar_url, is_verified))',
         )
         .eq('id', conversationId)
         .single()
@@ -132,8 +134,38 @@ export function useSendMessage(conversationId) {
       if (error) throw error
       return data
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['messages', conversationId] })
+    // Envoi optimiste : la bulle apparaît tout de suite (avec un état "en cours"),
+    // puis on remplace par le message réel au succès.
+    onMutate: async (body) => {
+      await qc.cancelQueries({ queryKey: ['messages', conversationId] })
+      const me = qc.getQueryData(['profile', user.id])
+      const optimistic = {
+        id: `optimistic-${Date.now()}`,
+        conversation_id: conversationId,
+        sender_id: user.id,
+        body: body.trim(),
+        created_at: new Date().toISOString(),
+        status_id: null,
+        sender: {
+          id: user.id,
+          username: me?.username ?? null,
+          full_name: me?.full_name ?? null,
+          avatar_url: me?.avatar_url ?? null,
+        },
+        _pending: true,
+      }
+      const prev = qc.getQueryData(['messages', conversationId])
+      qc.setQueryData(['messages', conversationId], (old) => [...(old ?? []), optimistic])
+      return { prev, optimisticId: optimistic.id }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['messages', conversationId], ctx.prev)
+    },
+    onSuccess: (data, _v, ctx) => {
+      // Remplace la bulle optimiste par le message réel (id + horodatage serveur)
+      qc.setQueryData(['messages', conversationId], (old) =>
+        (old ?? []).map((m) => (m.id === ctx?.optimisticId ? data : m)),
+      )
       qc.invalidateQueries({ queryKey: ['conversations'] })
     },
   })
@@ -202,6 +234,38 @@ export function useMarkRead() {
   })
 }
 
+/** Quitter une conversation (retire ma propre adhésion). DM ou groupe. */
+export function useLeaveConversation() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (conversationId) => {
+      const { error } = await supabase
+        .from('conversation_members')
+        .delete()
+        .eq('conversation_id', conversationId)
+        .eq('user_id', user.id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+  })
+}
+
+/** Supprimer entièrement une conversation (propriétaire uniquement, cascade). */
+export function useDeleteConversation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (conversationId) => {
+      const { error } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+  })
+}
+
 /**
  * Abonnement Realtime global au chat : à chaque nouveau message,
  * rafraîchit la liste des conversations et le fil concerné.
@@ -210,6 +274,7 @@ export function useMarkRead() {
 export function useChatRealtime() {
   const { user } = useAuth()
   const qc = useQueryClient()
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (!user?.id) return
@@ -219,9 +284,33 @@ export function useChatRealtime() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
-          const convId = payload.new.conversation_id
+          const msg = payload.new
+          const convId = msg.conversation_id
           qc.invalidateQueries({ queryKey: ['messages', convId] })
           qc.invalidateQueries({ queryKey: ['conversations'] })
+
+          // Toast « push » : message d'un autre, et pas la conversation ouverte
+          if (msg.sender_id === user.id) return
+          if (window.location.pathname === `/app/messages/${convId}`) return
+
+          const convs = qc.getQueryData(['conversations', user.id])
+          const conv = convs?.find((c) => c.id === convId)
+          if (!conv) return // pas (encore) une de mes conversations en cache
+          const sender = conv.members?.find(
+            (m) => m.user_id === msg.sender_id,
+          )?.user
+          const senderName =
+            sender?.full_name || (sender?.username && `@${sender.username}`)
+          const title = conv.is_group
+            ? `${senderName ?? 'Quelqu’un'} · ${conv.title ?? 'Groupe'}`
+            : senderName
+
+          pushMessageToast({
+            actor: sender,
+            title,
+            body: msg.body || 'a envoyé un message',
+            onClick: () => navigate(`/app/messages/${convId}`),
+          })
         },
       )
       .subscribe()
@@ -229,5 +318,5 @@ export function useChatRealtime() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [user?.id, qc])
+  }, [user?.id, qc, navigate])
 }

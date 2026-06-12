@@ -82,6 +82,69 @@ export function useResources(collectionId) {
   })
 }
 
+/** Collections (à moi / membre) avec des modifications non consultées → Map(id → nombre). */
+export function useCollectionsUnseen() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['collections-unseen', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('my_collections_unseen')
+      if (error) throw error
+      const map = new Map()
+      for (const row of data) map.set(row.collection_id, Number(row.unseen_count))
+      return map
+    },
+  })
+}
+
+/** Mes ressources « déjà vues » dans une collection → Map(resource_id → seen_at). */
+export function useResourceSeen(collectionId) {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['resource-seen', collectionId, user?.id],
+    enabled: !!collectionId && !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('resource_seen')
+        .select('resource_id, seen_at, resources!inner(collection_id)')
+        .eq('user_id', user.id)
+        .eq('resources.collection_id', collectionId)
+      if (error) throw error
+      const map = new Map()
+      for (const row of data) map.set(row.resource_id, row.seen_at)
+      return map
+    },
+  })
+}
+
+/** Marque une liste de ressources comme vues (upsert seen_at = maintenant). */
+export function useMarkResourcesSeen(collectionId) {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (resourceIds) => {
+      const ids = [...new Set(resourceIds)].filter(Boolean)
+      if (ids.length === 0) return
+      const now = new Date().toISOString()
+      const rows = ids.map((resource_id) => ({
+        user_id: user.id,
+        resource_id,
+        seen_at: now,
+      }))
+      const { error } = await supabase
+        .from('resource_seen')
+        .upsert(rows, { onConflict: 'user_id,resource_id' })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['resource-seen', collectionId, user?.id] })
+      qc.invalidateQueries({ queryKey: ['notifications', user?.id] })
+      qc.invalidateQueries({ queryKey: ['collections-unseen', user?.id] })
+    },
+  })
+}
+
 export function useCreateCollection() {
   const { user } = useAuth()
   const qc = useQueryClient()
@@ -149,12 +212,12 @@ export function useMyMembership(collectionId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('collection_members')
-        .select('role')
+        .select('role, created_at')
         .eq('collection_id', collectionId)
         .eq('user_id', user.id)
         .maybeSingle()
       if (error) throw error
-      return data // { role } | null
+      return data // { role, created_at } | null
     },
   })
 }

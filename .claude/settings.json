@@ -30,7 +30,12 @@
       "Bash(node -e ' *)",
       "Bash(git commit -q -m '@ *)",
       "Bash(node scripts/avatar-upload-test.mjs)",
-      "Bash(node scripts/seed-demo.mjs)"
+      "Bash(node scripts/seed-demo.mjs)",
+      "WebFetch(domain:github.com)",
+      "Bash(npx -y skills@latest --help)",
+      "Bash(npx -y skills@latest add https://github.com/greensock/gsap-skills -g --all --copy)",
+      "Bash(ls ~/.claude/skills | grep -i gsap)",
+      "Read(//c/Users/dieum/.claude/skills/**)"
     ]
   }
 }

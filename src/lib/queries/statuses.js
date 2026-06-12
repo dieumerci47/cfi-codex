@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -57,6 +57,33 @@ export function useStatusFeed() {
       return { mine: mine ?? null, others }
     },
   })
+}
+
+/**
+ * Stories actives consultables. Renvoie EXACTEMENT les mêmes groupes ordonnés
+ * que la barre de statuts du feed (`[mine, ...others]`) pour que la visionneuse
+ * ouverte depuis une photo (feed, profil, messages) se comporte à l'identique :
+ * même ordre, même navigation entre les personnes. `storyOf(authorId)` →
+ * { index, allSeen } | null indexe dans ce même tableau. Le feed est partagé/
+ * caché avec la barre de statuts, donc l'appeler par carte est gratuit.
+ */
+export function useStories() {
+  const { data } = useStatusFeed()
+  const groups = useMemo(() => {
+    const mine = data?.mine
+    const others = data?.others ?? []
+    return [...(mine ? [mine] : []), ...others]
+  }, [data])
+  const indexByAuthor = useMemo(() => {
+    const m = new Map()
+    groups.forEach((g, i) => m.set(g.author.id, i))
+    return m
+  }, [groups])
+  const storyOf = (authorId) => {
+    const i = indexByAuthor.get(authorId)
+    return i == null ? null : { index: i, allSeen: groups[i].allSeen }
+  }
+  return { groups, storyOf }
 }
 
 export function useCreateStatus() {

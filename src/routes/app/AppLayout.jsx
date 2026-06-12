@@ -25,6 +25,7 @@ import { useChatRealtime, useTotalUnread } from '@/lib/queries/chat'
 import { useNotificationsRealtime } from '@/lib/queries/notifications'
 import { useStatusesRealtime } from '@/lib/queries/statuses'
 import { useMyFollowing } from '@/lib/queries/social'
+import { useCollectionsUnseen } from '@/lib/queries/collections'
 import { NotificationsBell } from '@/components/social/NotificationsBell'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { VerifiedBadge } from '@/components/social/VerifiedBadge'
@@ -41,6 +42,8 @@ export default function AppLayout() {
   useNotificationsRealtime() // abonnement live aux notifications (cloche)
   useStatusesRealtime() // abonnement live aux statuts (ajout/suppression)
   useMyFollowing() // préchauffe « qui je suis » → boutons Suivre sans flash
+  const { data: unseenCollections } = useCollectionsUnseen()
+  const hasCourseUpdates = (unseenCollections?.size ?? 0) > 0
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr]">
@@ -50,7 +53,11 @@ export default function AppLayout() {
 
         <nav className="mt-8 flex flex-1 flex-col gap-1">
           {NAV.map((item) => (
-            <SideLink key={item.to} {...item} />
+            <SideLink
+              key={item.to}
+              {...item}
+              dot={item.to === '/app/collections' && hasCourseUpdates}
+            />
           ))}
 
           <Button asChild className="mt-4 justify-start gap-2 glow-primary">
@@ -91,7 +98,11 @@ export default function AppLayout() {
       {/* Bottom nav mobile */}
       <nav className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-around border-t border-border bg-background/90 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur lg:hidden">
         {NAV.map((item) => (
-          <BottomLink key={item.to} {...item} />
+          <BottomLink
+            key={item.to}
+            {...item}
+            dot={item.to === '/app/collections' && hasCourseUpdates}
+          />
         ))}
       </nav>
     </div>
@@ -192,7 +203,7 @@ function MessagesButton() {
   )
 }
 
-function SideLink({ to, label, icon: Icon, end }) {
+function SideLink({ to, label, icon: Icon, end, dot }) {
   return (
     <NavLink
       to={to}
@@ -206,13 +217,18 @@ function SideLink({ to, label, icon: Icon, end }) {
         )
       }
     >
-      <Icon className="size-5" />
+      <span className="relative">
+        <Icon className="size-5" />
+        {dot && (
+          <span className="absolute -right-1 -top-1 size-2 rounded-full bg-ember ring-2 ring-card" />
+        )}
+      </span>
       {label}
     </NavLink>
   )
 }
 
-function BottomLink({ to, label, icon: Icon, end }) {
+function BottomLink({ to, label, icon: Icon, end, dot }) {
   return (
     <NavLink
       to={to}
@@ -224,7 +240,12 @@ function BottomLink({ to, label, icon: Icon, end }) {
         )
       }
     >
-      <Icon className="size-5" />
+      <span className="relative">
+        <Icon className="size-5" />
+        {dot && (
+          <span className="absolute -right-1 -top-1 size-2 rounded-full bg-ember ring-2 ring-background" />
+        )}
+      </span>
       {label}
     </NavLink>
   )
