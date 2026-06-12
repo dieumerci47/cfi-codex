@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { PROFILE_FIELDS } from '@/lib/queries/fragments'
 import { pushMessageToast } from '@/components/social/pushToasts'
 
 /**
@@ -17,7 +18,7 @@ export function useConversations() {
       const { data: convs, error } = await supabase
         .from('conversations')
         .select(
-          '*, members:conversation_members(user_id, last_read_at, user:profiles(id, username, full_name, avatar_url, is_verified))',
+          `*, members:conversation_members(user_id, last_read_at, user:profiles(${PROFILE_FIELDS}))`,
         )
         .order('last_message_at', { ascending: false })
       if (error) throw error
@@ -92,7 +93,7 @@ export function useMessages(conversationId) {
       const { data, error } = await supabase
         .from('messages')
         .select(
-          '*, sender:profiles(id, username, full_name, avatar_url, is_verified), ' +
+          `*, sender:profiles(${PROFILE_FIELDS}), ` +
             'repliedStatus:statuses(id, caption, media_path)',
         )
         .eq('conversation_id', conversationId)
@@ -113,7 +114,7 @@ export function useConversation(conversationId) {
       const { data, error } = await supabase
         .from('conversations')
         .select(
-          '*, members:conversation_members(user_id, user:profiles(id, username, full_name, avatar_url, is_verified))',
+          `*, members:conversation_members(user_id, user:profiles(${PROFILE_FIELDS}))`,
         )
         .eq('id', conversationId)
         .single()
@@ -142,7 +143,7 @@ export function useSendMessage(conversationId) {
           sender_id: user.id,
           body: body.trim(),
         })
-        .select('*, sender:profiles(id, username, full_name, avatar_url)')
+        .select(`*, sender:profiles(${PROFILE_FIELDS})`)
         .single()
       if (error) throw error
       return data
@@ -266,6 +267,7 @@ export function useLeaveConversation() {
 
 /** Supprimer entièrement une conversation (propriétaire uniquement, cascade). */
 export function useDeleteConversation() {
+  const { user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (conversationId) => {
@@ -273,6 +275,7 @@ export function useDeleteConversation() {
         .from('conversations')
         .delete()
         .eq('id', conversationId)
+        .eq('created_by', user.id)
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),

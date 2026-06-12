@@ -171,10 +171,8 @@ function ProfileView({ profile, self }) {
     }
   }
 
-  // Sur le profil d'un autre, on ne montre que les collections publiques
-  const visibleCollections = self
-    ? collections
-    : collections?.filter((c) => c.visibility === 'public')
+  // Sur le profil d'un autre, useCollections ne renvoie que les publiques
+  const visibleCollections = collections
 
   return (
     <div ref={scope} className="mx-auto w-full max-w-2xl pb-6">

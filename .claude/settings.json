@@ -35,7 +35,9 @@
       "Bash(npx -y skills@latest --help)",
       "Bash(npx -y skills@latest add https://github.com/greensock/gsap-skills -g --all --copy)",
       "Bash(ls ~/.claude/skills | grep -i gsap)",
-      "Read(//c/Users/dieum/.claude/skills/**)"
+      "Read(//c/Users/dieum/.claude/skills/**)",
+      "Bash(git commit *)",
+      "Bash(grep -iE \"\\\\.html$\")"
     ]
   }
 }

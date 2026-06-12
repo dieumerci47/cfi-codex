@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { PROFILE_FIELDS } from '@/lib/queries/fragments'
 
 const BUCKET = 'status-media'
 
@@ -142,7 +143,7 @@ export function useStatusViewers(statusId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('status_views')
-        .select('created_at, viewer:profiles(id, username, full_name, avatar_url)')
+        .select(`created_at, viewer:profiles(${PROFILE_FIELDS})`)
         .eq('status_id', statusId)
         .order('created_at', { ascending: false })
       if (error) throw error

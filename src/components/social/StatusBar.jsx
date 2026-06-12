@@ -297,13 +297,13 @@ export function StatusViewer({ groups, startIndex, onClose }) {
   const { user } = useAuth()
   const [gi, setGi] = useState(startIndex)
   const [si, setSi] = useState(0)
-  const [progress, setProgress] = useState(0)
   const [paused, setPaused] = useState(false) // saisie réponse
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showViewers, setShowViewers] = useState(false)
   const markViewed = useMarkStatusViewed()
   const reply = useReplyToStatus()
   const elapsed = useRef(0)
+  const barsRef = useRef(null) // conteneur des barres, animées hors React
   const [replyText, setReplyText] = useState('')
 
   const group = groups[gi]
@@ -334,7 +334,10 @@ export function StatusViewer({ groups, startIndex, onClose }) {
   useEffect(() => {
     if (!status) return
     elapsed.current = 0
-    setProgress(0)
+    // Resynchronise toutes les barres (le rAF n'écrit que dans la courante)
+    Array.from(barsRef.current?.children ?? []).forEach((wrap, i) => {
+      wrap.firstElementChild.style.width = i < si ? '100%' : '0%'
+    })
     setReplyText('')
     setPaused(false)
     setConfirmDelete(false)
@@ -343,19 +346,24 @@ export function StatusViewer({ groups, startIndex, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gi, si])
 
-  // Minuteur (gelé pendant saisie réponse / confirmation / liste des vues)
+  // Minuteur (gelé pendant saisie réponse / confirmation / liste des vues).
+  // La largeur est écrite directement dans le DOM via rAF : pas de re-render
+  // à chaque tick, React ne reprend la main qu'au changement de statut.
   useEffect(() => {
     if (!status || frozen) return
-    const tick = setInterval(() => {
-      elapsed.current += 50
+    const bar = barsRef.current?.children[si]?.firstElementChild
+    let raf
+    let last = performance.now()
+    const step = (now) => {
+      elapsed.current += now - last
+      last = now
       const pct = Math.min(100, (elapsed.current / STORY_MS) * 100)
-      setProgress(pct)
-      if (pct >= 100) {
-        clearInterval(tick)
-        next()
-      }
-    }, 50)
-    return () => clearInterval(tick)
+      if (bar) bar.style.width = `${pct}%`
+      if (pct >= 100) next()
+      else raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gi, si, frozen])
 
@@ -380,12 +388,12 @@ export function StatusViewer({ groups, startIndex, onClose }) {
     <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/90">
       <div className="relative flex h-full w-full max-w-md flex-col">
         {/* Barres de progression */}
-        <div className="absolute inset-x-0 top-0 z-20 flex gap-1 p-2">
+        <div ref={barsRef} className="absolute inset-x-0 top-0 z-20 flex gap-1 p-2">
           {group.statuses.map((s, i) => (
             <div key={s.id} className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/30">
               <div
                 className="h-full bg-white"
-                style={{ width: i < si ? '100%' : i === si ? `${progress}%` : '0%' }}
+                style={{ width: i < si ? '100%' : '0%' }}
               />
             </div>
           ))}

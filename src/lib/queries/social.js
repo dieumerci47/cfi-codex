@@ -6,12 +6,13 @@ import {
 } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { PROFILE_FIELDS } from '@/lib/queries/fragments'
 
 const POST_MEDIA_BUCKET = 'post-media'
 
 // Compteurs lus depuis les colonnes dénormalisées (plus d'agrégation à la lecture).
 const POST_SELECT =
-  '*, author:profiles!posts_author_id_fkey(id, username, full_name, avatar_url, is_verified), ' +
+  `*, author:profiles!posts_author_id_fkey(${PROFILE_FIELDS}), ` +
   'collection:collections(id, title, visibility), ' +
   'media:post_media(id, storage_path)'
 
@@ -37,25 +38,37 @@ function shapePost(row, likedSet) {
 /** Hydrate une liste d'IDs (dans l'ordre) → posts complets + liked_by_me. */
 async function hydratePosts(ids, myId) {
   if (!ids.length) return []
-  const { data, error } = await supabase
-    .from('posts')
-    .select(POST_SELECT)
-    .in('id', ids)
+  const [{ data, error }, { data: myLikes }] = await Promise.all([
+    supabase.from('posts').select(POST_SELECT).in('id', ids),
+    myId
+      ? supabase
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', myId)
+          .in('post_id', ids)
+      : Promise.resolve({ data: [] }),
+  ])
   if (error) throw error
-  let likedSet = new Set()
-  if (myId) {
-    const { data: myLikes } = await supabase
-      .from('likes')
-      .select('post_id')
-      .eq('user_id', myId)
-      .in('post_id', ids)
-    likedSet = new Set((myLikes ?? []).map((l) => l.post_id))
-  }
+  const likedSet = new Set((myLikes ?? []).map((l) => l.post_id))
   const byId = new Map(data.map((p) => [p.id, p]))
   return ids
     .map((id) => byId.get(id))
     .filter(Boolean)
     .map((row) => shapePost(row, likedSet))
+}
+
+/**
+ * Patche chaque post des caches feed + user-posts avec `fn` et renvoie les
+ * états précédents (paires [key, data]) pour pouvoir annuler en cas d'erreur.
+ */
+function patchPostCaches(qc, fn) {
+  const prev = [
+    ...qc.getQueriesData({ queryKey: ['feed'] }),
+    ...qc.getQueriesData({ queryKey: ['user-posts'] }),
+  ]
+  qc.setQueriesData({ queryKey: ['feed'] }, (d) => mapPosts(d, fn))
+  qc.setQueriesData({ queryKey: ['user-posts'] }, (d) => mapPosts(d, fn))
+  return prev
 }
 
 /** Applique `fn` à chaque post — cache plat (tableau) OU paginé (infinite query). */
@@ -235,12 +248,7 @@ export function useToggleLike() {
               like_count: Math.max(0, p.like_count + (liked ? -1 : 1)),
             }
           : p
-      const prev = [
-        ...qc.getQueriesData({ queryKey: ['feed'] }),
-        ...qc.getQueriesData({ queryKey: ['user-posts'] }),
-      ]
-      qc.setQueriesData({ queryKey: ['feed'] }, (d) => mapPosts(d, patchOne))
-      qc.setQueriesData({ queryKey: ['user-posts'] }, (d) => mapPosts(d, patchOne))
+      const prev = patchPostCaches(qc, patchOne)
       return { prev }
     },
     onError: (_e, _v, ctx) => {
@@ -256,7 +264,7 @@ export function useComments(postId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('comments')
-        .select('*, author:profiles(id, username, full_name, avatar_url, is_verified)')
+        .select(`*, author:profiles(${PROFILE_FIELDS})`)
         .eq('post_id', postId)
         .order('created_at', { ascending: true })
       if (error) throw error
@@ -305,12 +313,7 @@ export function useAddComment(postId) {
         p.id === postId
           ? { ...p, comment_count: (p.comment_count ?? 0) + 1 }
           : p
-      const prev = [
-        ...qc.getQueriesData({ queryKey: ['feed'] }),
-        ...qc.getQueriesData({ queryKey: ['user-posts'] }),
-      ]
-      qc.setQueriesData({ queryKey: ['feed'] }, (d) => mapPosts(d, bumpOne))
-      qc.setQueriesData({ queryKey: ['user-posts'] }, (d) => mapPosts(d, bumpOne))
+      const prev = patchPostCaches(qc, bumpOne)
       return { prevComments, prev }
     },
     onError: (_e, _v, ctx) => {
@@ -341,12 +344,7 @@ export function useDeleteComment(postId) {
         p.id === postId
           ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 0) - 1) }
           : p
-      const prev = [
-        ...qc.getQueriesData({ queryKey: ['feed'] }),
-        ...qc.getQueriesData({ queryKey: ['user-posts'] }),
-      ]
-      qc.setQueriesData({ queryKey: ['feed'] }, (d) => mapPosts(d, decOne))
-      qc.setQueriesData({ queryKey: ['user-posts'] }, (d) => mapPosts(d, decOne))
+      const prev = patchPostCaches(qc, decOne)
       return { prevComments, prev }
     },
     onError: (_e, _v, ctx) => {
@@ -510,31 +508,6 @@ export function useIsFriend(targetId) {
       })
       if (error) throw error
       return data === true
-    },
-  })
-}
-
-/** Découverte : profils de l'école (hors soi), les plus récents. */
-export function useDiscoverProfiles(search = '') {
-  const { user } = useAuth()
-  return useQuery({
-    queryKey: ['discover', user?.id, search],
-    enabled: !!user?.id,
-    queryFn: async () => {
-      let query = supabase
-        .from('profiles')
-        .select('id, username, full_name, avatar_url, promo, bio, is_verified')
-        .not('username', 'is', null)
-        .neq('id', user.id)
-        .limit(30)
-      if (search.trim()) {
-        query = query.or(
-          `username.ilike.%${search}%,full_name.ilike.%${search}%`,
-        )
-      }
-      const { data, error } = await query
-      if (error) throw error
-      return data
     },
   })
 }

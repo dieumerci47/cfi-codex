@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { PROFILE_FIELDS } from '@/lib/queries/fragments'
 import { pushNotifToast } from '@/components/social/pushToasts'
 
 const NOTIF_SELECT =
-  '*, actor:profiles!notifications_actor_id_fkey(id, username, full_name, avatar_url, is_verified), ' +
+  `*, actor:profiles!notifications_actor_id_fkey(${PROFILE_FIELDS}), ` +
   'collection:collections(id, title), ' +
   'resource:resources(id, name, kind, parent_id)'
 
@@ -161,9 +162,11 @@ export function useNotificationsRealtime() {
         async (payload) => {
           qc.invalidateQueries({ queryKey: ['notifications'] })
           // une modif de collection peut être arrivée → rafraîchit les repères
-          qc.invalidateQueries({ queryKey: ['collections-unseen', user.id] })
-          qc.invalidateQueries({ queryKey: ['resources'] })
-          qc.invalidateQueries({ queryKey: ['resource-seen'] })
+          if (payload.new.type?.startsWith('collection_')) {
+            qc.invalidateQueries({ queryKey: ['collections-unseen', user.id] })
+            qc.invalidateQueries({ queryKey: ['resources'] })
+            qc.invalidateQueries({ queryKey: ['resource-seen'] })
+          }
 
           // Toast « push » avec l'acteur et le contexte
           const { data: n } = await supabase

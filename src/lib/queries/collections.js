@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { PROFILE_FIELDS } from '@/lib/queries/fragments'
 
 const RESOURCES_BUCKET = 'resources'
 
@@ -20,19 +21,23 @@ export function useSubjects() {
   })
 }
 
-/** Collections d'un utilisateur (par défaut : le compte connecté). */
+/** Collections d'un utilisateur (par défaut : le compte connecté).
+ *  Sur le profil d'un autre, seules les collections publiques sont demandées. */
 export function useCollections(ownerId) {
   const { user } = useAuth()
   const target = ownerId ?? user?.id
+  const isSelf = target === user?.id
   return useQuery({
     queryKey: ['collections', target],
     enabled: !!target,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('collections')
         .select('*, subject:subjects(name, code)')
         .eq('owner_id', target)
         .order('updated_at', { ascending: false })
+      if (!isSelf) query = query.eq('visibility', 'public')
+      const { data, error } = await query
       if (error) throw error
       return data
     },
@@ -230,7 +235,7 @@ export function useCollectionMembers(collectionId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('collection_members')
-        .select('role, created_at, user:profiles(id, username, full_name, avatar_url)')
+        .select(`role, created_at, user:profiles(${PROFILE_FIELDS})`)
         .eq('collection_id', collectionId)
         .order('role')
       if (error) throw error
@@ -383,13 +388,13 @@ export function usePopularCollections() {
       const { data, error } = await supabase
         .from('collections')
         .select(
-          '*, subject:subjects(name, code), owner:profiles!collections_owner_id_fkey(username, full_name, avatar_url), stars:collection_stars(user_id)',
+          '*, subject:subjects(name, code), owner:profiles!collections_owner_id_fkey(username, full_name, avatar_url), stars:collection_stars(count)',
         )
         .eq('visibility', 'public')
         .limit(30)
       if (error) throw error
       return data
-        .map((c) => ({ ...c, star_count: c.stars?.length ?? 0 }))
+        .map((c) => ({ ...c, star_count: c.stars?.[0]?.count ?? 0 }))
         .sort((a, b) => b.star_count - a.star_count)
     },
   })
