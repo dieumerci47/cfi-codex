@@ -64,9 +64,9 @@ export default function ProfilePage() {
 }
 
 function ProfileView({ profile, self }) {
-  const { data: counts } = useFollowCounts(profile.id)
+  const { data: counts, isLoading: countsLoading } = useFollowCounts(profile.id)
   const { data: collections } = useCollections(profile.id)
-  const { data: posts } = useUserPosts(profile.id)
+  const { data: posts, isLoading: postsLoading } = useUserPosts(profile.id)
   const { data: isFriend } = useIsFriend(profile.id)
   const { groups, storyOf } = useStories()
   const startDM = useStartDM()
@@ -368,9 +368,21 @@ function ProfileView({ profile, self }) {
           data-pf="reveal"
           className="mt-4 grid grid-cols-3 divide-x divide-border/60 rounded-xl border border-border/60 bg-card/40 py-3 text-center"
         >
-          <Stat value={counts?.followers ?? 0} label="abonnés" />
-          <Stat value={counts?.following ?? 0} label="abonnements" />
-          <Stat value={posts?.length ?? 0} label="posts" />
+          <Stat
+            value={counts?.followers ?? 0}
+            label="abonnés"
+            loading={countsLoading && counts == null}
+          />
+          <Stat
+            value={counts?.following ?? 0}
+            label="abonnements"
+            loading={countsLoading && counts == null}
+          />
+          <Stat
+            value={posts?.length ?? 0}
+            label="posts"
+            loading={postsLoading && posts == null}
+          />
         </div>
 
         {/* Onglets */}
@@ -436,12 +448,16 @@ function ProfileView({ profile, self }) {
   )
 }
 
-function Stat({ value, label }) {
+function Stat({ value, label, loading }) {
   return (
     <div className="px-2">
-      <p className="font-display text-lg font-semibold tabular-nums leading-none">
-        <CountUp value={value} />
-      </p>
+      {loading ? (
+        <div className="mx-auto h-5 w-8 animate-pulse rounded bg-muted" />
+      ) : (
+        <p className="font-display text-lg font-semibold tabular-nums leading-none">
+          <CountUp value={value} />
+        </p>
+      )}
       <p className="mt-1 font-meta text-xs text-muted-foreground">{label}</p>
     </div>
   )

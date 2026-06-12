@@ -8,6 +8,7 @@ import {
   FolderTree,
   FilePlus2,
   CheckCheck,
+  X,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -18,6 +19,7 @@ import {
   useUnreadNotifCount,
   useMarkNotifsRead,
   useMarkNotifRead,
+  useDeleteNotif,
 } from '@/lib/queries/notifications'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { VerifiedBadge } from '@/components/social/VerifiedBadge'
@@ -77,6 +79,7 @@ export function NotificationsBell() {
   const unread = useUnreadNotifCount()
   const markAll = useMarkNotifsRead()
   const markOne = useMarkNotifRead()
+  const removeOne = useDeleteNotif()
   const navigate = useNavigate()
 
   const readOne = (n) => {
@@ -136,6 +139,7 @@ export function NotificationsBell() {
                   readOne(n)
                   setOpen(false)
                 }}
+                onDelete={() => removeOne.mutate(n.id)}
               />
             ))
           ) : (
@@ -154,7 +158,7 @@ export function NotificationsBell() {
   )
 }
 
-function NotificationRow({ n, onGo, onReadProfile }) {
+function NotificationRow({ n, onGo, onReadProfile, onDelete }) {
   const meta = META[n.type] ?? META.follow
   const Icon = meta.icon
   const name = n.actor?.full_name || `@${n.actor?.username}`
@@ -163,7 +167,7 @@ function NotificationRow({ n, onGo, onReadProfile }) {
   return (
     <div
       className={cn(
-        'relative flex items-start gap-3 border-b border-border/60 px-4 py-3 transition-colors hover:bg-accent/50',
+        'group relative flex items-start gap-3 border-b border-border/60 px-4 py-3 transition-colors hover:bg-accent/50',
         !n.read && 'bg-primary/5',
       )}
     >
@@ -171,6 +175,18 @@ function NotificationRow({ n, onGo, onReadProfile }) {
       {!n.read && (
         <span className="absolute inset-y-0 left-0 w-0.5 bg-ember" />
       )}
+
+      {/* supprimer la notification */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete?.()
+        }}
+        aria-label="Supprimer la notification"
+        className="absolute right-1.5 top-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+      >
+        <X className="size-3.5" />
+      </button>
 
       {/* avatar -> profil */}
       {profileHref ? (
@@ -230,7 +246,9 @@ function NotificationRow({ n, onGo, onReadProfile }) {
         </button>
       </div>
 
-      {!n.read && <span className="mt-1.5 size-2 shrink-0 rounded-full bg-ember" />}
+      {!n.read && (
+        <span className="mt-1.5 size-2 shrink-0 rounded-full bg-ember transition-opacity group-hover:opacity-0" />
+      )}
     </div>
   )
 }

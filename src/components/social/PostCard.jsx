@@ -21,6 +21,7 @@ import { ImageLightbox } from '@/components/social/ImageLightbox'
 import { StatusViewer } from '@/components/social/StatusBar'
 import { useStories } from '@/lib/queries/statuses'
 import { burst, prefersReducedMotion } from '@/components/motion'
+import { useConfirm } from '@/components/ConfirmProvider'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +33,7 @@ export function PostCard({ post, highlight = false, defaultExpanded = false }) {
   const { user } = useAuth()
   const toggleLike = useToggleLike()
   const del = useDeletePost()
+  const confirm = useConfirm()
   const { groups, storyOf } = useStories()
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [lightbox, setLightbox] = useState(null)
@@ -51,6 +53,12 @@ export function PostCard({ post, highlight = false, defaultExpanded = false }) {
   const commentInputRef = useRef(null)
 
   const onDelete = async () => {
+    const ok = await confirm({
+      title: 'Supprimer ce post ?',
+      description: 'Cette action est définitive et retire aussi ses commentaires.',
+      confirmLabel: 'Supprimer',
+    })
+    if (!ok) return
     try {
       await del.mutateAsync(post.id)
       toast.success('Post supprimé')

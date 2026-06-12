@@ -2,6 +2,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 
+/** Supprime définitivement le compte de l'utilisateur (cascade côté DB + stockage). */
+export function useDeleteMyAccount() {
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc('delete_my_account')
+      if (error) throw error
+    },
+  })
+}
+
 /** Profil de l'utilisateur connecté. `username === null` => onboarding requis. */
 export function useMyProfile() {
   const { user } = useAuth()

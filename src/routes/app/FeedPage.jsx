@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Sparkles } from 'lucide-react'
+import { Loader2, Sparkles } from 'lucide-react'
 import { useFeed } from '@/lib/queries/social'
 import { PostComposer } from '@/components/social/PostComposer'
 import { PostCard } from '@/components/social/PostCard'
@@ -9,19 +9,32 @@ import { FeedSkeleton } from '@/components/skeletons'
 import { RevealItem } from '@/components/motion'
 
 export default function FeedPage() {
-  const { data: posts, isLoading } = useFeed()
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useFeed()
   const [params, setParams] = useSearchParams()
+  const sentinelRef = useRef(null)
 
-  // Lien profond depuis une notification (like/commentaire) :
-  // ?post=<id>&c=<commentId> → on défile vers le post, on le surligne,
-  // et on déplie ses commentaires si un commentaire est ciblé.
-  const [target, setTarget] = useState(null) // { id, expand }
+  // Aplati les pages (récent classé + chrono) en dédupliquant par id.
+  const posts = useMemo(() => {
+    const seen = new Set()
+    const out = []
+    for (const page of data?.pages ?? []) {
+      for (const p of page.posts ?? []) {
+        if (!seen.has(p.id)) {
+          seen.add(p.id)
+          out.push(p)
+        }
+      }
+    }
+    return out
+  }, [data])
 
+  // Lien profond depuis une notification (?post=<id>&c=<commentId>)
+  const [target, setTarget] = useState(null)
   useEffect(() => {
     const postId = params.get('post')
     if (!postId) return
     setTarget({ id: postId, expand: !!params.get('c') })
-    // On nettoie l'URL pour ne pas re-surligner au rafraîchissement
     const next = new URLSearchParams(params)
     next.delete('post')
     next.delete('c')
@@ -36,6 +49,20 @@ export default function FeedPage() {
     const t = setTimeout(() => setTarget(null), 2400)
     return () => clearTimeout(t)
   }, [target, isLoading, posts])
+
+  // Infinite scroll : on charge la page suivante quand la sentinelle approche.
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !hasNextPage) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage()
+      },
+      { rootMargin: '600px' },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
@@ -55,18 +82,33 @@ export default function FeedPage() {
 
       {isLoading ? (
         <FeedSkeleton />
-      ) : posts?.length ? (
-        <div className="mt-4 space-y-4">
-          {posts.map((p) => (
-            <RevealItem key={p.id}>
-              <PostCard
-                post={p}
-                highlight={target?.id === p.id}
-                defaultExpanded={target?.id === p.id && target.expand}
-              />
-            </RevealItem>
-          ))}
-        </div>
+      ) : posts.length ? (
+        <>
+          <div className="mt-4 space-y-4">
+            {posts.map((p) => (
+              <RevealItem key={p.id}>
+                <PostCard
+                  post={p}
+                  highlight={target?.id === p.id}
+                  defaultExpanded={target?.id === p.id && target.expand}
+                />
+              </RevealItem>
+            ))}
+          </div>
+
+          {/* Sentinelle + indicateur de chargement */}
+          <div ref={sentinelRef} className="h-10" />
+          {isFetchingNextPage && (
+            <div className="flex justify-center py-4">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {!hasNextPage && (
+            <p className="py-6 text-center font-meta text-xs text-muted-foreground">
+              Tu es à jour ✦
+            </p>
+          )}
+        </>
       ) : (
         <div className="mt-10 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 px-6 py-16 text-center">
           <span className="inline-flex size-12 items-center justify-center rounded-xl bg-primary/12 text-primary">

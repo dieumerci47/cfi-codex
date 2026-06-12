@@ -7,6 +7,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Eye,
+  EyeOff,
   Loader2,
   LogIn,
   Sparkles,
@@ -46,17 +48,33 @@ const BENEFITS = [
   'Discute et révise en groupe',
 ]
 
+/** Traduit les erreurs Supabase Auth en messages clairs. */
+function authErrorMessage(err) {
+  const m = (err?.message || '').toLowerCase()
+  if (err?.status === 429 || m.includes('rate limit') || m.includes('too many'))
+    return 'Trop de tentatives ou d’emails envoyés. Patiente quelques minutes avant de réessayer.'
+  if (m.includes('invalid login credentials'))
+    return 'Email ou mot de passe incorrect.'
+  if (m.includes('email not confirmed'))
+    return 'Ton email n’est pas encore confirmé — vérifie ta boîte mail (et tes spams).'
+  if (m.includes('already registered') || m.includes('already exists'))
+    return 'Cette adresse a déjà un compte. Connecte-toi plutôt.'
+  return err?.message ?? 'Une erreur est survenue.'
+}
+
 export default function AuthPage({ mode = 'login' }) {
   const isSignup = mode === 'signup'
   const navigate = useNavigate()
   const { session, loading } = useAuth()
   const [submitting, setSubmitting] = useState(false)
   const [oauthLoading, setOauthLoading] = useState(null) // 'google' | 'apple'
+  const [showPwd, setShowPwd] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const {
     register,
     handleSubmit,
-    getValues,
+    // getValues,
     formState: { errors },
   } = useForm({ resolver: zodResolver(isSignup ? signupSchema : loginSchema) })
 
@@ -71,12 +89,26 @@ export default function AuthPage({ mode = 'login' }) {
     setSubmitting(true)
     try {
       if (isSignup) {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: values.email,
           password: values.password,
         })
         if (error) throw error
-        toast.success('Compte créé ! Vérifie tes emails pour confirmer.')
+
+        // Email déjà utilisé : Supabase peut renvoyer un user sans « identities ».
+        if (data?.user && data.user.identities?.length === 0) {
+          toast.error('Cette adresse a déjà un compte. Connecte-toi plutôt.')
+          navigate('/login')
+          return
+        }
+        // Confirmation d'email désactivée → l'utilisateur est connecté directement.
+        if (data?.session) {
+          toast.success('Bienvenue sur Cirasphère ✦')
+          navigate('/app')
+          return
+        }
+        // Repli (si la confirmation d'email est réactivée un jour).
+        toast.success('Compte créé ! Tu peux te connecter.')
         navigate('/login')
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -87,7 +119,7 @@ export default function AuthPage({ mode = 'login' }) {
         navigate('/app')
       }
     } catch (err) {
-      toast.error(err.message ?? 'Une erreur est survenue.')
+      toast.error(authErrorMessage(err))
     } finally {
       setSubmitting(false)
     }
@@ -112,7 +144,7 @@ export default function AuthPage({ mode = 'login' }) {
     }
   }
 
-  const forgotPassword = async () => {
+ /*  const forgotPassword = async () => {
     const email = getValues('email')
     if (!email) {
       toast.error('Saisis ton email d’abord, puis réessaie.')
@@ -123,7 +155,7 @@ export default function AuthPage({ mode = 'login' }) {
     })
     if (error) toast.error(error.message)
     else toast.success('Si un compte existe, un email de réinitialisation a été envoyé.')
-  }
+  } */
 
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
@@ -251,12 +283,12 @@ export default function AuthPage({ mode = 'login' }) {
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email de l’école</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
                 autoComplete="email"
-                placeholder={SCHOOL_DOMAIN ? `prenom@${SCHOOL_DOMAIN}` : 'prenom@ecole.fr'}
+                placeholder={SCHOOL_DOMAIN ? `prenom@${SCHOOL_DOMAIN}` : 'votre addresse email'}
                 {...register('email')}
                 aria-invalid={!!errors.email}
               />
@@ -266,26 +298,31 @@ export default function AuthPage({ mode = 'login' }) {
             </div>
 
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Mot de passe</Label>
-                {!isSignup && (
-                  <button
-                    type="button"
-                    onClick={forgotPassword}
-                    className="font-meta text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                  >
-                    Mot de passe oublié ?
-                  </button>
-                )}
+              <Label htmlFor="password">Mot de passe</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPwd ? 'text' : 'password'}
+                  autoComplete={isSignup ? 'new-password' : 'current-password'}
+                  placeholder="••••••••"
+                  className="pr-11"
+                  {...register('password')}
+                  aria-invalid={!!errors.password}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((v) => !v)}
+                  aria-label={showPwd ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  aria-pressed={showPwd}
+                  className="absolute right-1.5 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  {showPwd ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
               </div>
-              <Input
-                id="password"
-                type="password"
-                autoComplete={isSignup ? 'new-password' : 'current-password'}
-                placeholder="••••••••"
-                {...register('password')}
-                aria-invalid={!!errors.password}
-              />
               {errors.password && (
                 <p className="text-xs text-destructive">{errors.password.message}</p>
               )}
@@ -295,14 +332,30 @@ export default function AuthPage({ mode = 'login' }) {
             {isSignup && (
               <div className="space-y-1.5">
                 <Label htmlFor="confirm">Confirmer le mot de passe</Label>
-                <Input
-                  id="confirm"
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="••••••••"
-                  {...register('confirm')}
-                  aria-invalid={!!errors.confirm}
-                />
+                <div className="relative">
+                  <Input
+                    id="confirm"
+                    type={showConfirm ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    className="pr-11"
+                    {...register('confirm')}
+                    aria-invalid={!!errors.confirm}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    aria-label={showConfirm ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    aria-pressed={showConfirm}
+                    className="absolute right-1.5 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    {showConfirm ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
+                  </button>
+                </div>
                 {errors.confirm && (
                   <p className="text-xs text-destructive">{errors.confirm.message}</p>
                 )}

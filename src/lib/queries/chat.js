@@ -42,7 +42,20 @@ export function useConversations() {
         const mine = c.members.find((m) => m.user_id === user.id)
         const others = c.members.filter((m) => m.user_id !== user.id)
         const list = byConv.get(c.id) ?? []
-        const lastMessage = list[0] ?? null
+        let lastMessage = list[0] ?? null
+        // Nom de l'expéditeur du dernier message (pour l'aperçu des groupes)
+        if (lastMessage) {
+          const senderName =
+            lastMessage.sender_id === user.id
+              ? 'Vous'
+              : c.members
+                  .find((m) => m.user_id === lastMessage.sender_id)
+                  ?.user?.full_name?.split(' ')[0] ||
+                c.members.find((m) => m.user_id === lastMessage.sender_id)?.user
+                  ?.username ||
+                'Quelqu’un'
+          lastMessage = { ...lastMessage, senderName }
+        }
         const lastRead = mine ? new Date(mine.last_read_at) : new Date(0)
         const unread = list.filter(
           (m) => m.sender_id !== user.id && new Date(m.created_at) > lastRead,

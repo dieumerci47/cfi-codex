@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   Compass,
@@ -6,11 +7,15 @@ import {
   Plus,
   FolderTree,
   MessageCircle,
+  MessageSquareHeart,
+  Trash2,
   User as UserIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/features/auth/AuthProvider'
-import { useMyProfile } from '@/lib/queries/profile'
+import { useMyProfile, useDeleteMyAccount } from '@/lib/queries/profile'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
@@ -27,6 +32,7 @@ import { useStatusesRealtime } from '@/lib/queries/statuses'
 import { useMyFollowing } from '@/lib/queries/social'
 import { useCollectionsUnseen } from '@/lib/queries/collections'
 import { NotificationsBell } from '@/components/social/NotificationsBell'
+import { FeedbackDialog } from '@/components/social/FeedbackDialog'
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { VerifiedBadge } from '@/components/social/VerifiedBadge'
 
@@ -114,44 +120,80 @@ function ProfileMenu() {
   const { user, signOut } = useAuth()
   const { data: profile } = useMyProfile()
   const navigate = useNavigate()
+  const confirm = useConfirm()
+  const deleteAccount = useDeleteMyAccount()
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   const handleSignOut = async () => {
     await signOut()
     navigate('/')
   }
 
+  const handleDeleteAccount = async () => {
+    const ok = await confirm({
+      title: 'Supprimer définitivement ton compte ?',
+      description:
+        'Tes cours, posts, messages, statuts et abonnements seront effacés pour toujours. Cette action est irréversible.',
+      confirmLabel: 'Supprimer mon compte',
+    })
+    if (!ok) return
+    try {
+      await deleteAccount.mutateAsync()
+      await signOut()
+      toast.success('Ton compte a été supprimé.')
+      navigate('/')
+    } catch (err) {
+      toast.error(err.message ?? 'Suppression impossible.')
+    }
+  }
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        className="ml-1 rounded-full outline-none ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label="Mon compte"
-      >
-        <UserAvatar profile={profile} className="size-8" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <div className="flex items-center gap-3 px-2 py-2">
-          <UserAvatar profile={profile} className="size-10" />
-          <div className="min-w-0">
-            <p className="flex items-center gap-1 truncate text-sm font-medium">
-              {profile?.full_name || profile?.username || 'Mon compte'}
-              <VerifiedBadge verified={profile?.is_verified} />
-            </p>
-            <p className="truncate font-meta text-xs text-muted-foreground">
-              {user?.email}
-            </p>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className="ml-1 rounded-full outline-none ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Mon compte"
+        >
+          <UserAvatar profile={profile} className="size-8" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-64">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <UserAvatar profile={profile} className="size-10" />
+            <div className="min-w-0">
+              <p className="flex items-center gap-1 truncate text-sm font-medium">
+                {profile?.full_name || profile?.username || 'Mon compte'}
+                <VerifiedBadge verified={profile?.is_verified} />
+              </p>
+              <p className="truncate font-meta text-xs text-muted-foreground">
+                {user?.email}
+              </p>
+            </div>
           </div>
-        </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link to="/app/me">
-            <UserIcon className="size-4" /> Mon profil
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
-          <LogOut className="size-4" /> Se déconnecter
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link to="/app/me">
+              <UserIcon className="size-4" /> Mon profil
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setFeedbackOpen(true)}>
+            <MessageSquareHeart className="size-4" /> Donner mon avis
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleSignOut}>
+            <LogOut className="size-4" /> Se déconnecter
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={handleDeleteAccount}
+            disabled={deleteAccount.isPending}
+          >
+            <Trash2 className="size-4" /> Supprimer mon compte
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+    </>
   )
 }
 

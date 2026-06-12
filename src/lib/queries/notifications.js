@@ -85,6 +85,33 @@ export function useUnreadNotifCount() {
   return (data ?? []).filter((n) => !n.read).length
 }
 
+/** Supprime une notification (optimiste). */
+export function useDeleteNotif() {
+  const { user } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id) => {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id)
+      if (error) throw error
+    },
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['notifications', user?.id] })
+      const prev = qc.getQueryData(['notifications', user?.id])
+      qc.setQueryData(['notifications', user?.id], (old) =>
+        (old ?? []).filter((n) => n.id !== id),
+      )
+      return { prev }
+    },
+    onError: (_e, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['notifications', user?.id], ctx.prev)
+    },
+  })
+}
+
 /** Marque toutes mes notifications comme lues. */
 export function useMarkNotifsRead() {
   const { user } = useAuth()

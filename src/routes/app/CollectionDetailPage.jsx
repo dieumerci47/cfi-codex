@@ -26,6 +26,7 @@ import {
   Shield,
   Star,
   Sparkles,
+  Download,
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -52,6 +53,8 @@ import {
   useMarkResourcesSeen,
 } from '@/lib/queries/collections'
 import { ResourceViewer } from '@/components/ResourceViewer'
+import { useConfirm } from '@/components/ConfirmProvider'
+import { downloadResource, downloadTreeZip } from '@/lib/download'
 import { CollectionDetailSkeleton } from '@/components/skeletons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -98,6 +101,7 @@ export default function CollectionDetailPage() {
   const [metaVisibility, setMetaVisibility] = useState('public')
   const updateCollection = useUpdateCollection()
   const { data: subjects } = useSubjects()
+  const confirm = useConfirm()
 
   const upload = useUploadFiles(id)
   const uploadFolder = useUploadFolder(id)
@@ -294,6 +298,15 @@ export default function CollectionDetailPage() {
   }
 
   const onDelete = async (resource) => {
+    const ok = await confirm({
+      title: `Supprimer « ${resource.name} » ?`,
+      description:
+        resource.kind === 'folder'
+          ? 'Le dossier et tout son contenu seront supprimés définitivement.'
+          : 'Cette action est définitive.',
+      confirmLabel: 'Supprimer',
+    })
+    if (!ok) return
     try {
       await del.mutateAsync(resource)
       toast.success('Supprimé')
@@ -454,6 +467,10 @@ export default function CollectionDetailPage() {
           ) : (
             <>
               <StarButton collection={collection} />
+              <CollectionDownloadButton
+                title={collection.title}
+                resources={resources ?? []}
+              />
               {isOwner && (
                 <Button size="sm" variant="outline" onClick={startEditMeta}>
                   <Settings2 className="size-4" /> Modifier
@@ -637,6 +654,7 @@ export default function CollectionDetailPage() {
                       </span>
                     )}
                   </button>
+                  <RowDownloadButton item={item} resources={resources ?? []} />
                   {canEdit && (
                     <DropdownMenu>
                       <DropdownMenuTrigger
@@ -745,13 +763,86 @@ function FollowCollectionButton({ collectionId, isFollowing, canEdit }) {
   )
 }
 
+/** Télécharge un fichier / une note / un dossier (zip) depuis sa ligne. */
+function RowDownloadButton({ item, resources }) {
+  const [busy, setBusy] = useState(false)
+  const run = async (e) => {
+    e.stopPropagation()
+    setBusy(true)
+    try {
+      await downloadResource(item, resources)
+    } catch (err) {
+      toast.error(err.message ?? 'Échec du téléchargement.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <button
+      onClick={run}
+      disabled={busy}
+      aria-label={`Télécharger ${item.name}`}
+      className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100 disabled:opacity-100"
+    >
+      {busy ? (
+        <Loader2 className="size-4 animate-spin" />
+      ) : (
+        <Download className="size-4" />
+      )}
+    </button>
+  )
+}
+
+/** Télécharge toute la collection en .zip. */
+function CollectionDownloadButton({ title, resources }) {
+  const [busy, setBusy] = useState(false)
+  const run = async () => {
+    setBusy(true)
+    try {
+      await downloadTreeZip(title, resources, null)
+    } catch (err) {
+      toast.error(err.message ?? 'Échec du téléchargement.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={run}
+      disabled={busy || resources.length === 0}
+    >
+      {busy ? (
+        <Loader2 className="size-4 animate-spin" />
+      ) : (
+        <Download className="size-4" />
+      )}
+      Télécharger
+    </Button>
+  )
+}
+
 function MembersDialog({ collection, isOwner }) {
   const [open, setOpen] = useState(false)
   const { data: members } = useCollectionMembers(collection.id)
   const invite = useInviteMember(collection.id)
   const remove = useRemoveMember(collection.id)
+  const confirm = useConfirm()
 
   const [username, setUsername] = useState('')
+
+  const removeMember = async (member) => {
+    const ok = await confirm({
+      title: 'Retirer ce membre ?',
+      description: `${
+        member.full_name || `@${member.username}`
+      } perdra l'accès à cette collection.`,
+      confirmLabel: 'Retirer',
+    })
+    if (!ok) return
+    remove.mutate(member.id)
+  }
 
   const editors = members?.filter((m) => m.role === 'editor') ?? []
   const followers = members?.filter((m) => m.role === 'follower') ?? []
@@ -822,7 +913,7 @@ function MembersDialog({ collection, isOwner }) {
                   key={m.user.id}
                   profile={m.user}
                   label="éditeur"
-                  onRemove={isOwner ? () => remove.mutate(m.user.id) : undefined}
+                  onRemove={isOwner ? () => removeMember(m.user) : undefined}
                 />
               ))}
             </Section>
@@ -835,7 +926,7 @@ function MembersDialog({ collection, isOwner }) {
                   key={m.user.id}
                   profile={m.user}
                   label="abonné"
-                  onRemove={isOwner ? () => remove.mutate(m.user.id) : undefined}
+                  onRemove={isOwner ? () => removeMember(m.user) : undefined}
                 />
               ))}
             </Section>

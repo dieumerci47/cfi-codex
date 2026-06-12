@@ -2,16 +2,16 @@ import { Link } from 'react-router-dom'
 import {
   ArrowRight,
   BadgeCheck,
-  Flame,
+  // Flame,
   FolderTree,
   GitBranch,
   Heart,
   MessagesSquare,
   Radio,
-  Search,
+  // Search,
   ShieldCheck,
   Star,
-  Video,
+  // Video,
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -178,13 +178,13 @@ const FEATURES = [
     desc: 'Range tes PDF, images et notes markdown en collections. Accessibles partout, pour toujours.',
     soon: false,
   },
-  {
+ /*  {
     icon: Search,
     tag: 'révision express',
     title: 'Recherche plein-texte',
     desc: 'Tape un mot-clé et retrouve le bon titre, fichier ou note en deux secondes.',
     soon: false,
-  },
+  }, */
   {
     icon: Star,
     tag: 'depuis GitHub',
@@ -220,7 +220,7 @@ const FEATURES = [
     desc: 'Profs et délégués reconnaissables d’une coche : tu sais à qui te fier.',
     soon: false,
   },
-  {
+  /* {
     icon: Flame,
     tag: 'depuis Snapchat',
     title: 'Flammes & séries',
@@ -233,7 +233,7 @@ const FEATURES = [
     title: 'Scroll vidéo',
     desc: 'Des capsules de révision en format court, à dérouler entre deux cours.',
     soon: true,
-  },
+  }, */
 ]
 
 function FeatureGrid() {
@@ -313,14 +313,33 @@ function ClosingCta() {
   )
 }
 
+function GithubIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 .5C5.73.5.5 5.74.5 12.02c0 5.1 3.29 9.42 7.86 10.95.58.1.79-.25.79-.56 0-.27-.01-1-.02-1.96-3.2.7-3.88-1.54-3.88-1.54-.52-1.34-1.28-1.7-1.28-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.2 1.77 1.2 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.2-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.75.81 1.2 1.83 1.2 3.09 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.67.8.56A11.53 11.53 0 0 0 23.5 12.02C23.5 5.74 18.27.5 12 .5Z" />
+    </svg>
+  )
+}
+
 function SiteFooter() {
   return (
     <footer className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8">
       <div className="flex flex-col items-center justify-between gap-4 border-t border-border pt-8 sm:flex-row">
         <Logo />
-        <p className="font-meta text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Cirasphère · CFI-CIRAS · projet portfolio
-        </p>
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-5">
+          <a
+            href="https://github.com/dieumerci47/cfi-codex"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 font-meta text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <GithubIcon className="size-4" />
+            Code source sur GitHub
+          </a>
+          <p className="font-meta text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Cirasphère · CFI-CIRAS · Dieumerci-TSIMBA
+          </p>
+        </div>
       </div>
     </footer>
   )

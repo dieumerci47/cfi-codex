@@ -8,6 +8,7 @@ import App from './App.jsx'
 import { queryClient } from '@/lib/queryClient'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthProvider } from '@/features/auth/AuthProvider'
+import { ConfirmProvider } from '@/components/ConfirmProvider'
 import { Toaster } from '@/components/ui/sonner'
 
 createRoot(document.getElementById('root')).render(
@@ -16,7 +17,9 @@ createRoot(document.getElementById('root')).render(
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <BrowserRouter>
-            <App />
+            <ConfirmProvider>
+              <App />
+            </ConfirmProvider>
             <Toaster position="top-center" richColors />
           </BrowserRouter>
         </AuthProvider>

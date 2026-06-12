@@ -7,6 +7,7 @@ import {
   Globe,
   Lock,
   Search,
+  Sparkles,
   Star,
   StickyNote,
   Users,
@@ -16,7 +17,7 @@ import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 
 import { cn } from '@/lib/utils'
-import { useDiscoverProfiles } from '@/lib/queries/social'
+import { useSuggestedPeople, useSearchPeople } from '@/lib/queries/social'
 import {
   useSearchCourses,
   usePopularCollections,
@@ -103,18 +104,22 @@ export default function ExplorePage() {
 }
 
 function PeopleResults({ search }) {
-  const { data: profiles, isLoading } = useDiscoverProfiles(search)
+  const q = search.trim()
+  const searching = q.length >= 1
+  const suggestions = useSuggestedPeople()
+  const searchResults = useSearchPeople(q)
+  const { data: profiles, isLoading } = searching ? searchResults : suggestions
 
   if (isLoading) return <UserListSkeleton />
   if (!profiles?.length) {
     return (
       <EmptyState
         icon={<Users className="size-6" />}
-        title="Personne pour l’instant"
+        title={searching ? 'Aucun résultat' : 'Personne à suggérer'}
         text={
-          search
-            ? 'Aucun résultat pour cette recherche.'
-            : 'Quand d’autres élèves rejoindront Cirasphère, ils apparaîtront ici.'
+          searching
+            ? 'Aucune personne ne correspond à cette recherche.'
+            : 'Quand d’autres élèves rejoindront Cirasphère, des suggestions apparaîtront ici.'
         }
       />
     )
@@ -122,33 +127,60 @@ function PeopleResults({ search }) {
 
   return (
     <div className="mt-3 space-y-2.5">
-      {profiles.map((p, i) => (
-        <RevealItem key={p.id} delay={Math.min(i, 8) * 0.04}>
-          <div className="group flex items-center gap-3 rounded-xl border border-border bg-card/60 p-3.5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20">
-            <Link to={`/app/u/${p.username}`} className="shrink-0">
-              <UserAvatar profile={p} className="size-12" />
-            </Link>
-            <Link to={`/app/u/${p.username}`} className="min-w-0 flex-1">
-              <p className="flex items-center gap-1 truncate font-medium group-hover:text-primary">
-                {p.full_name || `@${p.username}`}
-                <VerifiedBadge verified={p.is_verified} />
-              </p>
-              <p className="truncate font-meta text-xs text-muted-foreground">
-                @{p.username}
-                {p.promo && ` · ${p.promo}`}
-              </p>
-              {p.bio && (
-                <p className="mt-0.5 truncate text-xs text-muted-foreground/80">
-                  {p.bio}
+      {!searching && (
+        <p className="font-meta text-xs uppercase tracking-wide text-muted-foreground">
+          Suggestions pour toi
+        </p>
+      )}
+      {profiles.map((p, i) => {
+        const reason = searching ? null : reasonFor(p)
+        return (
+          <RevealItem key={p.id} delay={Math.min(i, 8) * 0.04}>
+            <div className="group flex items-center gap-3 rounded-xl border border-border bg-card/60 p-3.5 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-black/20">
+              <Link to={`/app/u/${p.username}`} className="shrink-0">
+                <UserAvatar profile={p} className="size-12" />
+              </Link>
+              <Link to={`/app/u/${p.username}`} className="min-w-0 flex-1">
+                <p className="flex items-center gap-1 truncate font-medium group-hover:text-primary">
+                  {p.full_name || `@${p.username}`}
+                  <VerifiedBadge verified={p.is_verified} />
                 </p>
-              )}
-            </Link>
-            <FollowButton targetId={p.id} />
-          </div>
-        </RevealItem>
-      ))}
+                <p className="truncate font-meta text-xs text-muted-foreground">
+                  @{p.username}
+                  {p.promo && ` · ${p.promo}`}
+                </p>
+                {reason ? (
+                  <p className="mt-0.5 inline-flex items-center gap-1 truncate text-xs text-primary/90">
+                    <Sparkles className="size-3 shrink-0" />
+                    {reason}
+                  </p>
+                ) : (
+                  p.bio && (
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground/80">
+                      {p.bio}
+                    </p>
+                  )
+                )}
+              </Link>
+              <FollowButton targetId={p.id} />
+            </div>
+          </RevealItem>
+        )
+      })}
     </div>
   )
+}
+
+/** Raison de suggestion lisible (promo > amis communs > popularité). */
+function reasonFor(p) {
+  if (p.same_promo) return 'Même promo'
+  if (p.mutual_count > 0)
+    return `Suivi par ${p.mutual_count} personne${
+      p.mutual_count > 1 ? 's' : ''
+    } que tu suis`
+  if (p.follower_count > 0)
+    return `${p.follower_count} abonné${p.follower_count > 1 ? 's' : ''}`
+  return null
 }
 
 function CourseResults({ search }) {

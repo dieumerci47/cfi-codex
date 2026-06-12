@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { useAddComment, useComments, useDeleteComment } from '@/lib/queries/social'
 import { useMyProfile } from '@/lib/queries/profile'
 import { shortTime } from '@/lib/time'
@@ -83,6 +84,7 @@ export function PostComments({
 function CommentRow({ c, postId, postAuthorId }) {
   const { user } = useAuth()
   const del = useDeleteComment(postId)
+  const confirm = useConfirm()
   const canDelete =
     !c._optimistic &&
     (c.author_id === user?.id ||
@@ -90,6 +92,11 @@ function CommentRow({ c, postId, postAuthorId }) {
       postAuthorId === user?.id)
 
   const onDelete = async () => {
+    const ok = await confirm({
+      title: 'Supprimer ce commentaire ?',
+      confirmLabel: 'Supprimer',
+    })
+    if (!ok) return
     try {
       await del.mutateAsync(c.id)
     } catch (err) {

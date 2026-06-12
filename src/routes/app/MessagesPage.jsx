@@ -48,6 +48,7 @@ import {
 import { UserAvatar } from '@/components/social/UserAvatar'
 import { VerifiedBadge } from '@/components/social/VerifiedBadge'
 import { StatusViewer } from '@/components/social/StatusBar'
+import { useConfirm } from '@/components/ConfirmProvider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -88,12 +89,34 @@ function ConversationMenu({ conv, isActive, variant = 'row' }) {
   const leave = useLeaveConversation()
   const del = useDeleteConversation()
   const markRead = useMarkRead()
+  const confirm = useConfirm()
 
   const isGroup = conv.is_group
   const owner = conv.created_by === user?.id
   const busy = leave.isPending || del.isPending
 
   const remove = async () => {
+    const ok = await confirm(
+      isGroup
+        ? owner
+          ? {
+              title: 'Supprimer le groupe ?',
+              description:
+                'Le groupe et tous ses messages seront supprimés pour tout le monde.',
+              confirmLabel: 'Supprimer',
+            }
+          : {
+              title: 'Quitter le groupe ?',
+              description: 'Tu ne recevras plus ses messages.',
+              confirmLabel: 'Quitter',
+            }
+        : {
+            title: 'Supprimer la conversation ?',
+            description: 'Elle disparaîtra de ta liste.',
+            confirmLabel: 'Supprimer',
+          },
+    )
+    if (!ok) return
     try {
       if (isGroup && owner) await del.mutateAsync(conv.id)
       else await leave.mutateAsync(conv.id)
@@ -295,10 +318,14 @@ function ConversationList({ activeId }) {
                             : 'text-muted-foreground',
                         )}
                       >
-                        {mineLast && c.lastMessage && (
-                          <span className="text-muted-foreground">Vous : </span>
+                        {c.lastMessage && (c.is_group || mineLast) && (
+                          <span className="text-muted-foreground">
+                            {c.lastMessage.senderName} :{' '}
+                          </span>
                         )}
-                        {c.lastMessage?.body ?? 'Nouvelle conversation'}
+                        {c.lastMessage
+                          ? c.lastMessage.body || 'Pièce jointe'
+                          : 'Nouvelle conversation'}
                       </span>
                       {c.unread > 0 && (
                         <span className="relative flex size-5 shrink-0 items-center justify-center">

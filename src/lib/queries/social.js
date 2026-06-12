@@ -1,22 +1,31 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 
 const POST_MEDIA_BUCKET = 'post-media'
 
+// Compteurs lus depuis les colonnes dénormalisées (plus d'agrégation à la lecture).
 const POST_SELECT =
   '*, author:profiles!posts_author_id_fkey(id, username, full_name, avatar_url, is_verified), ' +
   'collection:collections(id, title, visibility), ' +
-  'media:post_media(id, storage_path), likes(user_id), comments(count)'
+  'media:post_media(id, storage_path)'
 
-/** Met en forme une ligne post : compteurs + liked_by_me + URLs média. */
-function shapePost(row, myId) {
-  const likes = row.likes ?? []
+const FEED_RECENT_LIMIT = 25
+const FEED_CHRONO_LIMIT = 15
+const FEED_WINDOW_MS = 72 * 60 * 60 * 1000 // frontière récent/chrono : 72 h
+
+/** Met en forme une ligne post : URLs média + liked_by_me (via un Set). */
+function shapePost(row, likedSet) {
   return {
     ...row,
-    like_count: likes.length,
-    liked_by_me: likes.some((l) => l.user_id === myId),
-    comment_count: row.comments?.[0]?.count ?? 0,
+    like_count: row.like_count ?? 0,
+    comment_count: row.comment_count ?? 0,
+    liked_by_me: likedSet?.has(row.id) ?? false,
     media: (row.media ?? []).map((m) => ({
       ...m,
       url: supabase.storage.from(POST_MEDIA_BUCKET).getPublicUrl(m.storage_path)
@@ -25,34 +34,93 @@ function shapePost(row, myId) {
   }
 }
 
-/** Feed : posts des personnes suivies + soi. Repli sur toute l'école si on ne suit personne. */
+/** Hydrate une liste d'IDs (dans l'ordre) → posts complets + liked_by_me. */
+async function hydratePosts(ids, myId) {
+  if (!ids.length) return []
+  const { data, error } = await supabase
+    .from('posts')
+    .select(POST_SELECT)
+    .in('id', ids)
+  if (error) throw error
+  let likedSet = new Set()
+  if (myId) {
+    const { data: myLikes } = await supabase
+      .from('likes')
+      .select('post_id')
+      .eq('user_id', myId)
+      .in('post_id', ids)
+    likedSet = new Set((myLikes ?? []).map((l) => l.post_id))
+  }
+  const byId = new Map(data.map((p) => [p.id, p]))
+  return ids
+    .map((id) => byId.get(id))
+    .filter(Boolean)
+    .map((row) => shapePost(row, likedSet))
+}
+
+/** Applique `fn` à chaque post — cache plat (tableau) OU paginé (infinite query). */
+function mapPosts(data, fn) {
+  if (!data) return data
+  if (Array.isArray(data)) return data.map(fn)
+  if (data.pages) {
+    return {
+      ...data,
+      pages: data.pages.map((pg) =>
+        pg && Array.isArray(pg.posts) ? { ...pg, posts: pg.posts.map(fn) } : pg,
+      ),
+    }
+  }
+  return data
+}
+
+/**
+ * Feed hybride : 1re page = fenêtre récente (<72 h) classée par score (RPC),
+ * pages suivantes = chronologique keyset au-delà de 72 h. Pas de chevauchement.
+ */
 export function useFeed() {
   const { user } = useAuth()
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['feed', user?.id],
     enabled: !!user?.id,
-    queryFn: async () => {
-      const { data: follows, error: fErr } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user.id)
-      if (fErr) throw fErr
-
-      let query = supabase
-        .from('posts')
-        .select(POST_SELECT)
-        .order('created_at', { ascending: false })
-        .limit(50)
-
-      if (follows.length > 0) {
-        const ids = [...follows.map((f) => f.following_id), user.id]
-        query = query.in('author_id', ids)
+    initialPageParam: { mode: 'recent' },
+    queryFn: async ({ pageParam }) => {
+      if (pageParam.mode === 'recent') {
+        const { data, error } = await supabase.rpc('feed_recent_ranked', {
+          p_limit: FEED_RECENT_LIMIT,
+        })
+        if (error) throw error
+        const posts = await hydratePosts(
+          (data ?? []).map((r) => r.post_id),
+          user.id,
+        )
+        return {
+          posts,
+          nextParam: {
+            mode: 'chrono',
+            before: new Date(Date.now() - FEED_WINDOW_MS).toISOString(),
+          },
+        }
       }
-
-      const { data, error } = await query
+      const { data, error } = await supabase.rpc('feed_chrono', {
+        p_before: pageParam.before,
+        p_limit: FEED_CHRONO_LIMIT,
+      })
       if (error) throw error
-      return data.map((r) => shapePost(r, user.id))
+      const rows = data ?? []
+      const posts = await hydratePosts(
+        rows.map((r) => r.post_id),
+        user.id,
+      )
+      const last = rows[rows.length - 1]
+      return {
+        posts,
+        nextParam:
+          rows.length < FEED_CHRONO_LIMIT
+            ? undefined
+            : { mode: 'chrono', before: last.created_at },
+      }
     },
+    getNextPageParam: (lastPage) => lastPage.nextParam,
   })
 }
 
@@ -69,7 +137,17 @@ export function useUserPosts(userId) {
         .eq('author_id', userId)
         .order('created_at', { ascending: false })
       if (error) throw error
-      return data.map((r) => shapePost(r, user?.id))
+      const ids = data.map((p) => p.id)
+      let likedSet = new Set()
+      if (user?.id && ids.length) {
+        const { data: myLikes } = await supabase
+          .from('likes')
+          .select('post_id')
+          .eq('user_id', user.id)
+          .in('post_id', ids)
+        likedSet = new Set((myLikes ?? []).map((l) => l.post_id))
+      }
+      return data.map((row) => shapePost(row, likedSet))
     },
   })
 }
@@ -149,22 +227,20 @@ export function useToggleLike() {
     onMutate: async ({ postId, liked }) => {
       await qc.cancelQueries({ queryKey: ['feed'] })
       await qc.cancelQueries({ queryKey: ['user-posts'] })
-      const patch = (list) =>
-        list?.map((p) =>
-          p.id === postId
-            ? {
-                ...p,
-                liked_by_me: !liked,
-                like_count: Math.max(0, p.like_count + (liked ? -1 : 1)),
-              }
-            : p,
-        )
+      const patchOne = (p) =>
+        p.id === postId
+          ? {
+              ...p,
+              liked_by_me: !liked,
+              like_count: Math.max(0, p.like_count + (liked ? -1 : 1)),
+            }
+          : p
       const prev = [
         ...qc.getQueriesData({ queryKey: ['feed'] }),
         ...qc.getQueriesData({ queryKey: ['user-posts'] }),
       ]
-      qc.setQueriesData({ queryKey: ['feed'] }, patch)
-      qc.setQueriesData({ queryKey: ['user-posts'] }, patch)
+      qc.setQueriesData({ queryKey: ['feed'] }, (d) => mapPosts(d, patchOne))
+      qc.setQueriesData({ queryKey: ['user-posts'] }, (d) => mapPosts(d, patchOne))
       return { prev }
     },
     onError: (_e, _v, ctx) => {
@@ -225,18 +301,16 @@ export function useAddComment(postId) {
       const prevComments = qc.getQueryData(['comments', postId])
       qc.setQueryData(['comments', postId], (old) => [...(old ?? []), optimistic])
 
-      const bump = (list) =>
-        list?.map((p) =>
-          p.id === postId
-            ? { ...p, comment_count: (p.comment_count ?? 0) + 1 }
-            : p,
-        )
+      const bumpOne = (p) =>
+        p.id === postId
+          ? { ...p, comment_count: (p.comment_count ?? 0) + 1 }
+          : p
       const prev = [
         ...qc.getQueriesData({ queryKey: ['feed'] }),
         ...qc.getQueriesData({ queryKey: ['user-posts'] }),
       ]
-      qc.setQueriesData({ queryKey: ['feed'] }, bump)
-      qc.setQueriesData({ queryKey: ['user-posts'] }, bump)
+      qc.setQueriesData({ queryKey: ['feed'] }, (d) => mapPosts(d, bumpOne))
+      qc.setQueriesData({ queryKey: ['user-posts'] }, (d) => mapPosts(d, bumpOne))
       return { prevComments, prev }
     },
     onError: (_e, _v, ctx) => {
@@ -263,18 +337,16 @@ export function useDeleteComment(postId) {
       qc.setQueryData(['comments', postId], (old) =>
         (old ?? []).filter((c) => c.id !== commentId),
       )
-      const dec = (list) =>
-        list?.map((p) =>
-          p.id === postId
-            ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 0) - 1) }
-            : p,
-        )
+      const decOne = (p) =>
+        p.id === postId
+          ? { ...p, comment_count: Math.max(0, (p.comment_count ?? 0) - 1) }
+          : p
       const prev = [
         ...qc.getQueriesData({ queryKey: ['feed'] }),
         ...qc.getQueriesData({ queryKey: ['user-posts'] }),
       ]
-      qc.setQueriesData({ queryKey: ['feed'] }, dec)
-      qc.setQueriesData({ queryKey: ['user-posts'] }, dec)
+      qc.setQueriesData({ queryKey: ['feed'] }, (d) => mapPosts(d, decOne))
+      qc.setQueriesData({ queryKey: ['user-posts'] }, (d) => mapPosts(d, decOne))
       return { prevComments, prev }
     },
     onError: (_e, _v, ctx) => {
@@ -461,6 +533,41 @@ export function useDiscoverProfiles(search = '') {
         )
       }
       const { data, error } = await query
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/** Suggestions de personnes à suivre (promo + amis communs + populaire). */
+export function useSuggestedPeople() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['suggest-people', user?.id],
+    enabled: !!user?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('suggest_people', {
+        p_limit: 20,
+      })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/** Recherche de personnes (trigram + ilike), classée par similarité. */
+export function useSearchPeople(q) {
+  const { user } = useAuth()
+  const term = q.trim()
+  return useQuery({
+    queryKey: ['search-people', user?.id, term],
+    enabled: !!user?.id && term.length >= 1,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('search_people', {
+        p_q: term,
+        p_limit: 20,
+      })
       if (error) throw error
       return data
     },
