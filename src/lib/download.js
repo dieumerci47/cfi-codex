@@ -61,18 +61,14 @@ function safeName(name) {
 }
 
 /**
- * Télécharge un fichier seul. On génère une URL signée avec
- * `Content-Disposition: attachment` (option `download`) : le navigateur
- * télécharge le fichier directement — y compris sur iOS, où l'attribut
- * `download` d'un lien blob est ignoré.
+ * Télécharge un fichier seul. On récupère le Blob puis on l'enregistre via
+ * `saveBlob` : sur iOS cela ouvre le partage natif (« Enregistrer dans
+ * Fichiers ») au lieu d'ouvrir le fichier dans le navigateur ; ailleurs c'est
+ * un téléchargement direct.
  */
 export async function downloadFile(resource) {
-  const name = safeName(resource.name)
-  const { data, error } = await supabase.storage
-    .from(RESOURCES_BUCKET)
-    .createSignedUrl(resource.storage_path, 3600, { download: name })
-  if (error) throw error
-  triggerUrl(data.signedUrl, name)
+  const blob = await fileBlob(resource.storage_path)
+  await saveBlob(blob, safeName(resource.name))
 }
 
 /** Télécharge une note markdown (.md). */
