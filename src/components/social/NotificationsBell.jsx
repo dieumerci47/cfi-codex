@@ -183,7 +183,7 @@ function NotificationRow({ n, onGo, onReadProfile, onDelete }) {
           onDelete?.()
         }}
         aria-label="Supprimer la notification"
-        className="absolute right-1.5 top-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+        className="absolute right-1.5 top-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
       >
         <X className="size-3.5" />
       </button>

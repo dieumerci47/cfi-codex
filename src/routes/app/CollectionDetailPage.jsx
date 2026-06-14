@@ -273,7 +273,7 @@ export default function CollectionDetailPage() {
     e.preventDefault() // indispensable à chaque dragover pour autoriser le drop
     e.dataTransfer.dropEffect = 'copy'
   }
-  const onDragLeave = (e) => {
+  const onDragLeave = () => {
     if (!canEdit) return
     dragDepth.current = Math.max(0, dragDepth.current - 1)
     if (dragDepth.current === 0) setIsDragging(false)
@@ -659,7 +659,7 @@ export default function CollectionDetailPage() {
                   {canEdit && (
                     <DropdownMenu>
                       <DropdownMenuTrigger
-                        className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100 data-[state=open]:opacity-100"
+                        className="rounded-md p-1 text-muted-foreground transition-opacity hover:bg-accent data-[state=open]:opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
                         aria-label={`Actions sur ${item.name}`}
                       >
                         <MoreVertical className="size-4" />
@@ -783,7 +783,7 @@ function RowDownloadButton({ item, resources }) {
       onClick={run}
       disabled={busy}
       aria-label={`Télécharger ${item.name}`}
-      className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100 disabled:opacity-100"
+      className="rounded-md p-1 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground disabled:opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
     >
       {busy ? (
         <Loader2 className="size-4 animate-spin" />

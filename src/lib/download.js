@@ -2,15 +2,47 @@ import { supabase } from '@/lib/supabase'
 
 const RESOURCES_BUCKET = 'resources'
 
-/** Déclenche le téléchargement d'un Blob côté navigateur. */
-function saveBlob(blob, filename) {
-  const url = URL.createObjectURL(blob)
+// iOS Safari ignore l'attribut `download` (il ouvre le fichier au lieu de
+// l'enregistrer). On le détecte pour adapter la stratégie de téléchargement.
+const isIOS =
+  typeof navigator !== 'undefined' &&
+  (/iP(hone|ad|od)/.test(navigator.userAgent) ||
+    // iPad iPadOS se présente comme un Mac mais avec un écran tactile
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+
+/** Clique un lien <a> vers une URL (téléchargement piloté par le serveur). */
+function triggerUrl(url, filename) {
   const a = document.createElement('a')
   a.href = url
-  a.download = filename
+  if (filename) a.download = filename
+  a.rel = 'noopener'
   document.body.appendChild(a)
   a.click()
   a.remove()
+}
+
+/**
+ * Déclenche l'enregistrement d'un Blob généré côté client (note .md, .zip).
+ * Sur iOS, l'attribut `download` est inopérant : on passe par le partage natif
+ * (« Enregistrer dans Fichiers ») quand c'est possible.
+ */
+async function saveBlob(blob, filename) {
+  if (isIOS && navigator.canShare) {
+    const file = new File([blob], filename, {
+      type: blob.type || 'application/octet-stream',
+    })
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] })
+        return
+      } catch (err) {
+        if (err?.name === 'AbortError') return // l'utilisateur a annulé
+        // sinon on retombe sur la méthode classique ci-dessous
+      }
+    }
+  }
+  const url = URL.createObjectURL(blob)
+  triggerUrl(url, filename)
   setTimeout(() => URL.revokeObjectURL(url), 1500)
 }
 
@@ -28,17 +60,26 @@ function safeName(name) {
   return (name || 'sans-nom').replace(/[\\/:*?"<>|]+/g, '_').trim()
 }
 
-/** Télécharge un fichier seul. */
+/**
+ * Télécharge un fichier seul. On génère une URL signée avec
+ * `Content-Disposition: attachment` (option `download`) : le navigateur
+ * télécharge le fichier directement — y compris sur iOS, où l'attribut
+ * `download` d'un lien blob est ignoré.
+ */
 export async function downloadFile(resource) {
-  const blob = await fileBlob(resource.storage_path)
-  saveBlob(blob, safeName(resource.name))
+  const name = safeName(resource.name)
+  const { data, error } = await supabase.storage
+    .from(RESOURCES_BUCKET)
+    .createSignedUrl(resource.storage_path, 3600, { download: name })
+  if (error) throw error
+  triggerUrl(data.signedUrl, name)
 }
 
 /** Télécharge une note markdown (.md). */
 export function downloadNote(resource) {
   const base = safeName(resource.name)
   const name = base.toLowerCase().endsWith('.md') ? base : `${base}.md`
-  saveBlob(
+  return saveBlob(
     new Blob([resource.note_content ?? ''], { type: 'text/markdown' }),
     name,
   )
@@ -72,7 +113,7 @@ export async function downloadTreeZip(rootName, resources, rootId = null) {
 
   await walk(zip, rootId)
   const blob = await zip.generateAsync({ type: 'blob' })
-  saveBlob(blob, `${safeName(rootName)}.zip`)
+  await saveBlob(blob, `${safeName(rootName)}.zip`)
 }
 
 /** Télécharge la bonne chose selon le type de ressource. */

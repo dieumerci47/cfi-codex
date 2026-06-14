@@ -136,7 +136,7 @@ function ConversationMenu({ conv, isActive, variant = 'row' }) {
         className={cn(
           'inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent',
           variant === 'row' &&
-            'opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100',
+            'data-[state=open]:opacity-100 lg:opacity-0 lg:group-hover:opacity-100',
         )}
         aria-label="Actions de la conversation"
       >
