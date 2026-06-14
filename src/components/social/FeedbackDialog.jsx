@@ -3,6 +3,7 @@ import { Loader2, MessageSquareHeart } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import { useSubmitFeedback } from '@/lib/queries/feedback'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -42,7 +43,7 @@ export function FeedbackDialog({ open, onOpenChange }) {
       reset()
       onOpenChange(false)
     } catch (err) {
-      toast.error(err.message ?? 'Échec de l’envoi.')
+      toast.error(friendlyError(err, 'Échec de l’envoi.'))
     }
   }
 

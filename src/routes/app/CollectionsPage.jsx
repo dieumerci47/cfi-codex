@@ -15,6 +15,7 @@ import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import {
   useCollections,
   useCreateCollection,
@@ -283,7 +284,7 @@ function NewCollectionDialog() {
       reset()
       setOpen(false)
     } catch (err) {
-      toast.error(err.message ?? 'Erreur lors de la création.')
+      toast.error(friendlyError(err, 'Erreur lors de la création.'))
     }
   }
 

@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { Logo } from '@/components/brand/Logo'
@@ -59,7 +60,7 @@ function authErrorMessage(err) {
     return 'Ton email n’est pas encore confirmé — vérifie ta boîte mail (et tes spams).'
   if (m.includes('already registered') || m.includes('already exists'))
     return 'Cette adresse a déjà un compte. Connecte-toi plutôt.'
-  return err?.message ?? 'Une erreur est survenue.'
+  return friendlyError(err, 'Une erreur est survenue.')
 }
 
 export default function AuthPage({ mode = 'login' }) {
@@ -138,7 +139,7 @@ export default function AuthPage({ mode = 'login' }) {
       toast.error(
         err.message?.includes('not enabled')
           ? `Connexion ${provider} pas encore activée côté serveur.`
-          : (err.message ?? 'Connexion impossible.'),
+          : friendlyError(err, 'Connexion impossible.'),
       )
       setOauthLoading(null)
     }

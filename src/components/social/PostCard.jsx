@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import gsap from 'gsap'
 
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import { shortTime } from '@/lib/time'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useDeletePost, useToggleLike } from '@/lib/queries/social'
@@ -63,7 +64,7 @@ export function PostCard({ post, highlight = false, defaultExpanded = false }) {
       await del.mutateAsync(post.id)
       toast.success('Post supprimé')
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Suppression impossible.'))
     }
   }
 

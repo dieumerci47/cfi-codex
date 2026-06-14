@@ -4,6 +4,7 @@ import { Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useConfirm } from '@/components/ConfirmProvider'
 import { useAddComment, useComments, useDeleteComment } from '@/lib/queries/social'
@@ -100,7 +101,7 @@ function CommentRow({ c, postId, postAuthorId }) {
     try {
       await del.mutateAsync(c.id)
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
     }
   }
 
@@ -155,7 +156,7 @@ function CommentComposer({ postId, inputRef }) {
     try {
       await add.mutateAsync(body)
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
       setText(body)
     }
   }

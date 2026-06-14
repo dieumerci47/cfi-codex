@@ -3,6 +3,7 @@ import { FolderTree, ImagePlus, Loader2, Send, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useCreatePost } from '@/lib/queries/social'
 import { useCollections } from '@/lib/queries/collections'
@@ -45,7 +46,7 @@ export function PostComposer() {
       setFocused(false)
       toast.success('Publié ✦')
     } catch (err) {
-      toast.error(err.message ?? 'Échec de la publication.')
+      toast.error(friendlyError(err, 'Échec de la publication.'))
     }
   }
 

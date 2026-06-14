@@ -12,6 +12,7 @@ import {
   useUpdateProfile,
   isUsernameAvailable,
 } from '@/lib/queries/profile'
+import { friendlyError } from '@/lib/errors'
 import { Logo } from '@/components/brand/Logo'
 import { FullScreenLoader } from '@/components/FullScreenLoader'
 import { Button } from '@/components/ui/button'
@@ -66,7 +67,7 @@ export default function OnboardingPage() {
       toast.success('Bienvenue sur Cirasphère ✦')
       navigate('/app')
     } catch (err) {
-      toast.error(err.message ?? 'Une erreur est survenue.')
+      toast.error(friendlyError(err, 'Une erreur est survenue.'))
       setSubmitting(false)
     }
   }

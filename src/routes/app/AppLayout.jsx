@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useMyProfile, useDeleteMyAccount } from '@/lib/queries/profile'
 import { useConfirm } from '@/components/ConfirmProvider'
@@ -143,7 +144,7 @@ function ProfileMenu() {
       toast.success('Ton compte a été supprimé.')
       navigate('/')
     } catch (err) {
-      toast.error(err.message ?? 'Suppression impossible.')
+      toast.error(friendlyError(err, 'Suppression impossible.'))
     }
   }
 

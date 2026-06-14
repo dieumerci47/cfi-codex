@@ -20,6 +20,7 @@ import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
   useConversations,
@@ -125,7 +126,7 @@ function ConversationMenu({ conv, isActive, variant = 'row' }) {
       )
       if (isActive) navigate('/app/messages')
     } catch (e) {
-      toast.error(e.message ?? 'Erreur.')
+      toast.error(friendlyError(e, 'Action impossible pour le moment.'))
     }
   }
 
@@ -695,7 +696,7 @@ function Composer({ onSend }) {
     try {
       await onSend(body)
     } catch (err) {
-      toast.error(err.message ?? 'Échec de l’envoi.')
+      toast.error(friendlyError(err, 'Échec de l’envoi.'))
       setText(body) // restaure la saisie en cas d'échec
     } finally {
       setSending(false)
@@ -769,7 +770,7 @@ function NewConversationDialog() {
       reset()
       navigate(`/app/messages/${convId}`)
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
     }
   }
 
@@ -793,7 +794,7 @@ function NewConversationDialog() {
       reset()
       navigate(`/app/messages/${conv.id}`)
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
     }
   }
 

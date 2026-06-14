@@ -12,6 +12,7 @@ import {
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
   useStatusFeed,
@@ -170,7 +171,7 @@ function AddStatusDialog({ trigger }) {
       reset()
       setOpen(false)
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
     }
   }
 
@@ -376,7 +377,7 @@ export function StatusViewer({ groups, startIndex, onClose }) {
       await reply.mutateAsync({ statusId: status.id, body })
       toast.success(`Réponse envoyée à @${group.author.username}`)
     } catch (err) {
-      toast.error(err.message ?? 'Échec de l’envoi.')
+      toast.error(friendlyError(err, 'Échec de l’envoi.'))
     } finally {
       setPaused(false)
     }
@@ -499,7 +500,7 @@ function ConfirmDeletePanel({ status, onCancel, onDeleted }) {
       toast.success('Statut supprimé')
       onDeleted()
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
     }
   }
   return (

@@ -32,6 +32,7 @@ import {
 import { toast } from 'sonner'
 
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
   useCollection,
@@ -226,7 +227,7 @@ export default function CollectionDetailPage() {
           : `${list.length} fichiers ajoutés ✦`,
       )
     } catch (err) {
-      toast.error(err.message ?? 'Échec de l’upload.')
+      toast.error(friendlyError(err, 'Échec de l’upload.'))
     }
   }
 
@@ -246,7 +247,7 @@ export default function CollectionDetailPage() {
       const res = await uploadFolder.mutateAsync({ files: list, parent_id: folderId })
       toast.success(`« ${topName} » importé — ${res.files} fichiers ✦`)
     } catch (err) {
-      toast.error(err.message ?? 'Échec de l’import du dossier.')
+      toast.error(friendlyError(err, 'Échec de l’import du dossier.'))
     }
   }
 
@@ -311,7 +312,7 @@ export default function CollectionDetailPage() {
       await del.mutateAsync(resource)
       toast.success('Supprimé')
     } catch (err) {
-      toast.error(err.message ?? 'Échec de la suppression.')
+      toast.error(friendlyError(err, 'Échec de la suppression.'))
     }
   }
 
@@ -344,7 +345,7 @@ export default function CollectionDetailPage() {
       toast.success('Collection mise à jour ✦')
       setEditingMeta(false)
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
     }
   }
 
@@ -772,7 +773,7 @@ function RowDownloadButton({ item, resources }) {
     try {
       await downloadResource(item, resources)
     } catch (err) {
-      toast.error(err.message ?? 'Échec du téléchargement.')
+      toast.error(friendlyError(err, 'Échec du téléchargement.'))
     } finally {
       setBusy(false)
     }
@@ -801,7 +802,7 @@ function CollectionDownloadButton({ title, resources }) {
     try {
       await downloadTreeZip(title, resources, null)
     } catch (err) {
-      toast.error(err.message ?? 'Échec du téléchargement.')
+      toast.error(friendlyError(err, 'Échec du téléchargement.'))
     } finally {
       setBusy(false)
     }
@@ -856,7 +857,7 @@ function MembersDialog({ collection, isOwner }) {
       toast.success('Collaborateur ajouté ✦')
       setUsername('')
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
     }
   }
 
@@ -1010,7 +1011,7 @@ function ResourceRenameRow({ item, collectionId, onDone }) {
       await rename.mutateAsync({ id: item.id, name: trimmed })
       toast.success('Renommé')
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
     }
     onDone()
   }
@@ -1058,7 +1059,7 @@ function NewFolderDialog({ collectionId, parentId }) {
       setName('')
       setOpen(false)
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
     }
   }
 
@@ -1116,7 +1117,7 @@ function NewNoteDialog({ collectionId, parentId }) {
       setContent('')
       setOpen(false)
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Action impossible pour le moment.'))
     }
   }
 

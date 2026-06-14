@@ -15,6 +15,7 @@ import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 
 import { cn } from '@/lib/utils'
+import { friendlyError } from '@/lib/errors'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
   useMyProfile,
@@ -112,7 +113,7 @@ function ProfileView({ profile, self }) {
       const url = await uploadAvatar.mutateAsync(file)
       setAvatarUrl(url)
     } catch (err) {
-      toast.error(err.message ?? 'Échec du téléversement de l’avatar.')
+      toast.error(friendlyError(err, 'Échec du téléversement de l’avatar.'))
       setPreview(null)
     }
   }
@@ -133,7 +134,7 @@ function ProfileView({ profile, self }) {
       setEditing(false)
       setPreview(null)
     } catch (err) {
-      toast.error(err.message ?? 'Erreur.')
+      toast.error(friendlyError(err, 'Impossible de mettre à jour ton profil.'))
     }
   }
 
@@ -167,7 +168,7 @@ function ProfileView({ profile, self }) {
       const convId = await startDM.mutateAsync(profile.id)
       navigate(`/app/messages/${convId}`)
     } catch (err) {
-      toast.error(err.message ?? 'Impossible d’ouvrir la conversation.')
+      toast.error(friendlyError(err, 'Impossible d’ouvrir la conversation.'))
     }
   }
 

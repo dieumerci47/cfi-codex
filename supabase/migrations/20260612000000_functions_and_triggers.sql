@@ -588,6 +588,7 @@ begin
   if new.avatar_url is distinct from old.avatar_url and old.avatar_url is not null then
     oldpath := split_part(old.avatar_url, '/avatars/', 2);
     if oldpath is not null and oldpath <> '' then
+      perform set_config('storage.allow_delete_query', 'true', true);
       delete from storage.objects where bucket_id = 'avatars' and name = oldpath;
     end if;
   end if;
@@ -602,6 +603,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_post_media_storage()
 AS $function$
 begin
   if old.storage_path is not null then
+    perform set_config('storage.allow_delete_query', 'true', true);
     delete from storage.objects
       where bucket_id = 'post-media' and name = old.storage_path;
   end if;
@@ -616,6 +618,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_resource_storage()
 AS $function$
 begin
   if old.storage_path is not null then
+    perform set_config('storage.allow_delete_query', 'true', true);
     delete from storage.objects
       where bucket_id = 'resources' and name = old.storage_path;
   end if;
@@ -630,6 +633,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_status_storage()
 AS $function$
 begin
   if old.media_path is not null then
+    perform set_config('storage.allow_delete_query', 'true', true);
     delete from storage.objects
       where bucket_id = 'status-media' and name = old.media_path;
   end if;
