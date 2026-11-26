@@ -1,4 +1,8 @@
+import { useRef } from 'react'
 import { Link } from 'react-router-dom'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { useGSAP } from '@gsap/react'
 import {
   ArrowRight,
   BadgeCheck,
@@ -17,9 +21,120 @@ import { Logo, LogoMark } from '@/components/brand/Logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 
+gsap.registerPlugin(useGSAP, ScrollTrigger)
+
 export default function LandingPage() {
+  const scope = useRef(null)
+
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia()
+
+      // Toutes les animations vivent ici : sous reduced-motion, rien ne tourne
+      // et le contenu reste à son état naturel (visible).
+      mm.add('(prefers-reduced-motion: no-preference)', () => {
+        // — Entrée du hero en cascade —
+        const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+        tl.from('.js-hero-item', {
+          y: 28,
+          opacity: 0,
+          duration: 0.7,
+          stagger: 0.09,
+        })
+          .from(
+            '.js-course-card',
+            { y: 44, opacity: 0, rotateY: -10, duration: 0.9 },
+            '-=0.45',
+          )
+          .from(
+            '.js-tree-row',
+            { x: -14, opacity: 0, duration: 0.4, stagger: 0.06 },
+            '-=0.4',
+          )
+
+        // — Flottement continu de la carte (sur un wrapper dédié) —
+        gsap.to('.js-course-float', {
+          y: 10,
+          duration: 3.2,
+          ease: 'sine.inOut',
+          repeat: -1,
+          yoyo: true,
+        })
+
+        // — Tilt parallaxe au survol de la carte cours —
+        const card = scope.current?.querySelector('.js-course-card')
+        const float = scope.current?.querySelector('.js-course-float')
+        let cleanupTilt
+        if (card && float) {
+          const rotX = gsap.quickTo(float, 'rotationX', {
+            duration: 0.5,
+            ease: 'power3.out',
+          })
+          const rotY = gsap.quickTo(float, 'rotationY', {
+            duration: 0.5,
+            ease: 'power3.out',
+          })
+          const onMove = (e) => {
+            const r = card.getBoundingClientRect()
+            const px = (e.clientX - r.left) / r.width - 0.5
+            const py = (e.clientY - r.top) / r.height - 0.5
+            rotY(px * 12)
+            rotX(-py * 12)
+          }
+          const onLeave = () => {
+            rotX(0)
+            rotY(0)
+          }
+          card.addEventListener('pointermove', onMove)
+          card.addEventListener('pointerleave', onLeave)
+          cleanupTilt = () => {
+            card.removeEventListener('pointermove', onMove)
+            card.removeEventListener('pointerleave', onLeave)
+          }
+        }
+
+        // — Révélation au scroll des sections (titres, CTA) —
+        gsap.utils.toArray('.js-reveal').forEach((el) => {
+          gsap.from(el, {
+            scrollTrigger: { trigger: el, start: 'top 88%' },
+            y: 26,
+            opacity: 0,
+            duration: 0.6,
+            ease: 'power3.out',
+          })
+        })
+
+        // — Cartes de fonctionnalités en cascade au scroll —
+        ScrollTrigger.batch('.js-feature', {
+          start: 'top 86%',
+          onEnter: (els) =>
+            gsap.from(els, {
+              y: 30,
+              opacity: 0,
+              duration: 0.6,
+              stagger: 0.08,
+              ease: 'power3.out',
+              overwrite: true,
+            }),
+        })
+
+        // — Pulsation douce du logo du CTA final —
+        gsap.to('.js-cta-logo', {
+          scale: 1.06,
+          duration: 2.4,
+          ease: 'sine.inOut',
+          repeat: -1,
+          yoyo: true,
+        })
+
+        return () => cleanupTilt?.()
+      })
+    },
+    { scope },
+  )
+
   return (
-    <div className="relative min-h-dvh overflow-hidden">
+    <div ref={scope} className="relative min-h-dvh overflow-hidden">
       {/* Halo d'ambiance émeraude + braise, façon lueur de page */}
       <div
         aria-hidden
@@ -66,17 +181,17 @@ function Hero() {
   return (
     <section className="grid items-center gap-12 py-12 sm:py-20 lg:grid-cols-[1.1fr_0.9fr]">
       <div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 font-meta text-xs text-muted-foreground backdrop-blur">
+        <span className="js-hero-item inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 font-meta text-xs text-muted-foreground backdrop-blur">
           <span className="size-1.5 rounded-full bg-primary" />
           la communauté du savoir · CFI-CIRAS
         </span>
 
-        <h1 className="mt-6 text-balance text-5xl leading-[0.98] font-semibold sm:text-6xl lg:text-7xl">
+        <h1 className="js-hero-item mt-6 text-balance text-5xl leading-[0.98] font-semibold sm:text-6xl lg:text-7xl">
           Ton savoir,{' '}
           <span className="italic text-primary">gardé à vie.</span>
         </h1>
 
-        <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
+        <p className="js-hero-item mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
           Cirasphère, c’est le{' '}
           <span className="font-medium text-foreground">GitHub de tes cours</span>{' '}
           mêlé au meilleur du réseau social. Archive tes notes et tes PDF,
@@ -87,7 +202,7 @@ function Hero() {
           , suis ta promo et partage ce que tu apprends.
         </p>
 
-        <div className="mt-8 flex flex-wrap items-center gap-3">
+        <div className="js-hero-item mt-8 flex flex-wrap items-center gap-3">
           <Button asChild size="lg" className="glow-primary">
             <Link to="/signup">
               Créer mon compte <ArrowRight className="size-4" />
@@ -98,7 +213,7 @@ function Hero() {
           </Button>
         </div>
 
-        <p className="mt-5 inline-flex items-center gap-2 font-meta text-xs text-muted-foreground">
+        <p className="js-hero-item mt-5 inline-flex items-center gap-2 font-meta text-xs text-muted-foreground">
           <ShieldCheck className="size-3.5 text-primary" />
           réservé aux membres de l’école · tes cours t’appartiennent
         </p>
@@ -112,7 +227,11 @@ function Hero() {
 /** Carte décorative : une "collection" de cours façon repo. */
 function CourseCard() {
   return (
-    <div className="relative">
+    <div className="js-course-card relative" style={{ perspective: '1100px' }}>
+      <div
+        className="js-course-float relative"
+        style={{ transformStyle: 'preserve-3d' }}
+      >
       <div className="absolute -inset-3 -z-10 rounded-3xl bg-linear-to-br from-primary/10 to-ember/10 blur-2xl" />
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/40 edge-hairline">
         {/* Barre de titre type éditeur */}
@@ -154,6 +273,7 @@ function CourseCard() {
           <span className="ml-auto">maj. il y a 2 h</span>
         </div>
       </div>
+      </div>
     </div>
   )
 }
@@ -161,7 +281,7 @@ function CourseCard() {
 function TreeRow({ depth = 0, icon, children }) {
   return (
     <li
-      className="flex items-center gap-2 rounded-md px-2 py-1 text-foreground/90 transition-colors hover:bg-accent"
+      className="js-tree-row flex items-center gap-2 rounded-md px-2 py-1 text-foreground/90 transition-colors hover:bg-accent"
       style={{ paddingLeft: `${0.5 + depth * 1.25}rem` }}
     >
       {icon ?? <span className="text-muted-foreground">·</span>}
@@ -239,7 +359,7 @@ const FEATURES = [
 function FeatureGrid() {
   return (
     <section className="py-12 sm:py-16">
-      <div className="flex items-end justify-between gap-4">
+      <div className="js-reveal flex items-end justify-between gap-4">
         <h2 className="text-3xl font-semibold sm:text-4xl">
           Le meilleur de chaque appli,
           <br />
@@ -254,10 +374,10 @@ function FeatureGrid() {
         {FEATURES.map((f) => (
           <article
             key={f.title}
-            className="group relative flex flex-col rounded-xl border border-border bg-card/60 p-5 transition-colors hover:border-primary/40"
+            className="js-feature group relative flex flex-col rounded-xl border border-border bg-card/60 p-5 transition-colors hover:border-primary/40"
           >
             <div className="flex items-center justify-between">
-              <span className="inline-flex size-10 items-center justify-center rounded-lg bg-primary/12 text-primary">
+              <span className="inline-flex size-10 items-center justify-center rounded-lg bg-primary/12 text-primary transition-transform duration-300 ease-out group-hover:-rotate-6 group-hover:scale-110">
                 <f.icon className="size-5" />
               </span>
               {f.soon && (
@@ -281,7 +401,7 @@ function FeatureGrid() {
 function ClosingCta() {
   return (
     <section className="py-12 sm:py-20">
-      <div className="relative overflow-hidden rounded-3xl border border-border bg-card px-6 py-14 text-center edge-hairline sm:px-12">
+      <div className="js-reveal relative overflow-hidden rounded-3xl border border-border bg-card px-6 py-14 text-center edge-hairline sm:px-12">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 -z-10 opacity-60"
@@ -291,7 +411,7 @@ function ClosingCta() {
           }}
         />
         <span className="mx-auto mb-6 inline-flex items-center gap-3">
-          <LogoMark className="size-12" />
+          <LogoMark className="js-cta-logo size-12" />
           <span className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
             Cirasphère
           </span>
