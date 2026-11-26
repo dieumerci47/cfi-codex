@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Check,
@@ -43,6 +43,7 @@ import {
   useRenameResource,
   useDeleteResource,
   useUpdateCollection,
+  useDeleteCollection,
   useMyMembership,
   useCollectionMembers,
   useInviteMember,
@@ -101,6 +102,8 @@ export default function CollectionDetailPage() {
   const [metaSubject, setMetaSubject] = useState('')
   const [metaVisibility, setMetaVisibility] = useState('public')
   const updateCollection = useUpdateCollection()
+  const deleteCollection = useDeleteCollection()
+  const navigate = useNavigate()
   const { data: subjects } = useSubjects()
   const confirm = useConfirm()
 
@@ -232,7 +235,9 @@ export default function CollectionDetailPage() {
   }
 
   const onPickFiles = (e) => {
-    const files = e.target.files
+    // Snapshot AVANT de vider l'input : remettre value='' vide la FileList
+    // vivante renvoyée par e.target.files (sinon on upload une liste vide).
+    const files = Array.from(e.target.files)
     e.target.value = ''
     uploadFiles(files)
   }
@@ -252,9 +257,31 @@ export default function CollectionDetailPage() {
   }
 
   const onPickFolder = (e) => {
-    const files = e.target.files
+    // Snapshot AVANT de vider l'input (cf. onPickFiles) : sinon la FileList
+    // du dossier sélectionné est vidée et rien n'est importé.
+    const files = Array.from(e.target.files)
     e.target.value = ''
     uploadFolderFiles(files)
+  }
+
+  // Suppression complète de la collection. La cascade Postgres efface ses
+  // ressources (dossiers/fichiers/notes), membres, étoiles et notifications,
+  // et les triggers AFTER DELETE purgent les fichiers du storage.
+  const handleDeleteCollection = async () => {
+    const ok = await confirm({
+      title: `Supprimer « ${collection.title} » ?`,
+      description:
+        'Le cours et tous ses dossiers, fichiers et notes seront supprimés définitivement, y compris les fichiers stockés. Cette action est irréversible.',
+      confirmLabel: 'Supprimer la collection',
+    })
+    if (!ok) return
+    try {
+      await deleteCollection.mutateAsync(id)
+      toast.success('Collection supprimée')
+      navigate('/app/collections')
+    } catch (err) {
+      toast.error(friendlyError(err, 'Suppression impossible.'))
+    }
   }
 
   // Drag & drop robuste (compteur d'entrées) : reste fiable quel que soit
@@ -402,6 +429,35 @@ export default function CollectionDetailPage() {
                   <option value="private">Privé (membres uniquement)</option>
                 </select>
               </div>
+
+              {isOwner && (
+                <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-destructive">
+                      Supprimer la collection
+                    </p>
+                    <p className="font-meta text-xs text-muted-foreground">
+                      Efface définitivement ce cours et tous ses dossiers,
+                      fichiers et notes.
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDeleteCollection}
+                    disabled={deleteCollection.isPending}
+                    className="shrink-0"
+                  >
+                    {deleteCollection.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Trash2 className="size-4" /> Supprimer
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <>
